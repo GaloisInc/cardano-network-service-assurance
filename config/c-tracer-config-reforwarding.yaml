@@ -1,0 +1,42 @@
+---
+networkMagic: 764824073
+network:
+  tag: ConnectTo
+  contents: [ "/tmp/forwarder.sock" ]
+loRequestNum: 100
+ekgRequestFreq: 2
+hasEKG:
+- epHost: 127.0.0.1
+  epPort: 3100
+- epHost: 127.0.0.1
+  epPort: 3101
+hasPrometheus:
+  epHost: 127.0.0.1
+  epPort: 3000
+hasRTView:
+  epHost: 127.0.0.1
+  epPort: 3200
+hasForwarding:
+  - network:
+    tag: AcceptAt
+    contents: "/tmp/reforwarder.sock"
+  - [["BlockFetch","Client"],
+     ["ChainSync","Client"],
+     ["ChainDB","AddBlockEvent"],
+     ["Net","Peers","List","PeersFromNodeKernel"]
+]
+  - {}
+logging:
+- logRoot: "/tmp/cardano-tracer-h-logs"
+  logMode: FileMode
+  logFormat: ForHuman
+- logRoot: "/tmp/cardano-tracer-m-logs"
+  logMode: FileMode
+  logFormat: ForMachine
+verbosity: Minimum
+rotation:
+  rpFrequencySecs: 300
+  # this last must be present
+  rpKeepFilesNum: 20
+  rpLogLimitBytes: 5000000
+  rpMaxAgeHours: 3

@@ -1,0 +1,195 @@
+cabal-version: 3.0
+
+name:                   cnsa
+version:                0.0.9
+synopsis:               Tools for Cardano Network Service Assurance
+description:            A set of tools that allow for doing network service
+                        assurance over a set of Cardano nodes.
+category:               Cardano,
+                        Trace,
+copyright:              Galois, Inc.
+author:                 Galois
+maintainer:             tullsen@galois.com
+license:                Apache-2.0
+license-files:          LICENSE
+build-type:             Simple
+extra-doc-files:        README.md
+
+-- the intention is to match the cardano-node project-config:
+common project-config
+  default-language:     Haskell2010
+  build-depends:        base >= 4.14 && < 4.17
+
+  ghc-options:          -Wall
+                        -Wcompat
+                        -Wincomplete-record-updates
+                        -Wincomplete-uni-patterns
+                        -Wno-unticked-promoted-constructors
+                        -Wno-orphans
+                        -Wpartial-fields
+                        -Wredundant-constraints
+                        -Wunused-packages
+
+-- demo-acceptor lib and exe: are an extension of equivalent artifacts
+-- in cardano-node.
+                            
+library demo-acceptor-lib
+  import:               project-config
+
+  hs-source-dirs:       test
+
+  other-modules:        Cardano.Tracer.Test.TestSetup
+                        Cardano.Tracer.Test.Utils
+
+  exposed-modules:      Cardano.Tracer.Test.Acceptor
+
+  build-depends:        async-extras
+                      , bytestring
+                      , cardano-tracer
+                      , containers
+                      , extra
+                      , filepath
+                      , generic-data
+                      , optparse-applicative-fork
+                      , ouroboros-network-api
+                      , stm
+                      , text
+                      , tasty-quickcheck
+                      , trace-forward
+
+executable demo-acceptor
+  import:               project-config
+
+  hs-source-dirs:       demo
+
+  main-is:              acceptor.hs
+
+  build-depends:        demo-acceptor-lib
+
+  ghc-options:          -threaded
+                        -rtsopts
+                        -with-rtsopts=-T
+  if os(windows)
+    buildable:          False
+
+library cnsa-sink-lib
+  import:               project-config
+
+  hs-source-dirs:       src
+
+  exposed-modules:      Cardano.Tracer.CNSA.CnsaSink
+                        Cardano.Tracer.CNSA.CnsaAnalyses
+                        Cardano.Tracer.CNSA.ParseLogs
+                        
+  build-depends:        aeson
+                      , async-extras
+                      , bytestring
+                      , cardano-slotting
+                      , cardano-tracer
+                      , containers
+                      , contra-tracer
+                      , extra
+                      , generic-data
+                      , hostname
+                      , ouroboros-network-api
+                      , prometheus
+                      , stm
+                      , text
+                      , text-short
+                      , time
+                      , trace-dispatcher
+                      , trace-forward
+                      
+                      -- local packages:
+                      , locli-slice
+                                           
+executable cnsa-sink
+  import:               project-config
+
+  hs-source-dirs:       app
+
+  main-is:              cnsa-sink.hs
+
+  build-depends:        cnsa-sink-lib
+
+  ghc-options:          -threaded
+                        -rtsopts
+                        -with-rtsopts=-T
+  if os(windows)
+    buildable:          False
+
+-- library locli-slice:
+--   this is a small slice (from master) of the cardano-node/bench/locli
+--   package.
+-- This is a stopgap measure due to
+--  - locli-1.29 CHAP version is not building. 
+--  - locli is not exporting Cardano.Unlog.LogObject.interpret
+--    (currently we have a one line change to export this)    
+
+library locli-slice
+  import:               project-config
+  
+  default-extensions:   BangPatterns
+                        BlockArguments
+                        DeriveGeneric
+                        DerivingStrategies
+                        DerivingVia
+                        FlexibleContexts
+                        FlexibleInstances
+                        GADTs
+                        ImportQualifiedPost
+                        LambdaCase
+                        MultiParamTypeClasses
+                        NamedFieldPuns
+                        NoImplicitPrelude
+                        OverloadedStrings
+                        PartialTypeSignatures
+                        RankNTypes
+                        RecordWildCards
+                        ScopedTypeVariables
+                        StandaloneDeriving
+                        TupleSections
+                        TypeApplications
+                        TypeFamilies
+                        TypeInType
+                        ViewPatterns
+  build-depends:
+                        aeson
+                      , async
+                      , attoparsec
+                      , attoparsec-iso8601
+                      , bytestring
+                      , cardano-ledger-core
+                      , cardano-prelude
+                      , cardano-slotting
+                      , containers
+                      , deepseq
+                      , extra
+                      , filepath
+                      , fingertree
+                      , ghc
+                      , optparse-applicative-fork
+   --                 , optparse-generic
+                      , ouroboros-consensus
+   --                 , ouroboros-network ^>= 0.8.1.0
+                      , ouroboros-network-api
+                      , quiet
+                      , split
+                      , statistics
+                      , text
+                      , text-short
+                      , time
+                      , trace-resources
+                      , transformers-except
+                      , vector
+                      , witherable
+                      
+  hs-source-dirs:       locli-src
+
+  exposed-modules:      Cardano.Unlog.LogObject
+  other-modules:        Cardano.Analysis.API.Ground
+                        Cardano.Util
+                        Data.CDF
+                        Data.DataDomain
+                        Data.Profile                        
+        
