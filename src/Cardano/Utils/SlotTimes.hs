@@ -1,15 +1,28 @@
-module Cardano.Utils.SlotTimes where
+module Cardano.Utils.SlotTimes
+  ( slotStart
+  , systemStart
+  ) 
+where
 
+-- base:
 import           Data.Time
-import           Data.Time.Format (parseTimeOrError)
-import           Data.Time.Clock (UTCTime)
 
 -- cardano packages:
 import           Cardano.Slotting.Slot
 
 
--- FIXME[R2]: is there simply accessed code to achieve the same function
---  in cardano libraries.
+slotStart :: SlotNo -> UTCTime
+slotStart =
+    flip addUTCTime timeWhenSlotChangedTo1Sec
+  . (* slotLength)
+  . (\s-> s - (fromIntegral $ unSlotNo slotWhenSlotChangedTo1Sec))
+  . fromIntegral
+  . unSlotNo
+
+
+-- FIXME[R2]: is there code to achieve the same function
+--  in the cardano libraries.  Simple to use (here we have simplifying
+--  preconditions.
 
 slotWhenSlotChangedTo1Sec :: SlotNo
 slotWhenSlotChangedTo1Sec = SlotNo 4492800
@@ -31,14 +44,6 @@ slotLength  = 1
 --
 -- Preconditions: 
 --   slot >= slotWhenSlotChangedTo1Sec
-
-slotStart :: SlotNo -> UTCTime
-slotStart =
-    flip addUTCTime timeWhenSlotChangedTo1Sec
-  . (* slotLength)
-  . (\s-> s - (fromIntegral $ unSlotNo slotWhenSlotChangedTo1Sec))
-  . fromIntegral
-  . unSlotNo
 
 
 ---- utilities -----------------------------------------------------

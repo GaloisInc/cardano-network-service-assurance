@@ -18,6 +18,7 @@ module Cardano.Tracer.CNSA.ParseLogs
  )
 where
 
+-- base:
 import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.ByteString.Lazy as BL
@@ -27,26 +28,26 @@ import qualified Data.Text.Encoding   as Text
 import           Network.HostName (HostName)
 import           Text.Read (readMaybe)
 
+-- package extra:
+import           Data.Either.Extra (maybeToEither)
+
 -- package text-short:
 import qualified Data.Text.Short as TS
 
 -- package cardano*...:
 import           Cardano.Slotting.Slot
+import qualified Cardano.Logging.Types as Log
 
 -- package locli:
-import           Cardano.Analysis.API.Ground (Hash)
+import           Cardano.Analysis.API.Ground ()
 import           Cardano.Unlog.LogObject
 
-import qualified Cardano.Logging.Types as Log
-{- testing
-import           Cardano.Logging.Types
-                   (TraceObject(..),DetailLevel(..),SeverityS(..))
--}
+
 
 ---- Types ---------------------------------------------------------
 
-type Addr  = String   -- Hostname:SocketNo
-type Peer  = Addr
+type Addr  = String   -- Intepreted as Hostname:SocketNo
+type Peer  = Addr     -- used 'semantically' for just the peer addresses
 
 data LogBody =
     LB_LOBody LOBody -- capturing everything that locli unparses
@@ -56,6 +57,7 @@ data LogBody =
 data EtcLogBody =
   PeersFromNodeKernel [(HostName, Maybe SlotNo)]
   deriving (Eq,Show)
+
 
 ---- Functions -----------------------------------------------------
 
@@ -97,11 +99,11 @@ pPeersFromNodeKernel :: Object -> Parser EtcLogBody
 pPeersFromNodeKernel v =
   do
   peers <- v .: "peers"
-  xs <- mapM pPeer peers  -- ??
+  xs <- mapM pPeer2 peers
   return $ PeersFromNodeKernel xs
 
   where
-  pPeer v' =
+  pPeer2 v' =
     do
     addr       <- v' .: "peerAddress"
     slotString <- v' .: "peerSlotNo"
@@ -113,11 +115,6 @@ pPeersFromNodeKernel v =
 
 maybeToEither' :: Maybe b -> a -> Either a b
 maybeToEither' = flip maybeToEither
-
-maybeToEither :: a -> Maybe b -> Either a b
-maybeToEither a = \case
-                     Nothing -> Left a
-                     Just b  -> Right b
 
 
 decodeAndParse :: (Object -> Parser a) -> Text.Text -> Either String a
@@ -133,7 +130,7 @@ decodeAndParse p s =
   textToLazyBS = BL.fromChunks . return . Text.encodeUtf8 
 
 
----- use Locli to parse what it does -------------------------------
+---- use Locli to parse --------------------------------------------
 
 getLOBody :: Log.TraceObject -> Either String LOBody
 getLOBody trObj =
@@ -156,6 +153,8 @@ parseBody ns s =
 ---- testing -------------------------------------------------------
 
 {-
+import           Cardano.Logging.Types
+                   (TraceObject(..),DetailLevel(..),SeverityS(..))
 
 t1 = parseBody "A.B" "{}"
 t2 = parseBody "ChainSync.Client.DownloadedHeader" "{}"

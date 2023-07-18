@@ -5,7 +5,7 @@ version:                0.0.9
 synopsis:               Tools for Cardano Network Service Assurance
 description:            A set of tools that allow for doing network service
                         assurance of the cardano network using a set of
-                        ``sampling' Cardano nodes.
+                        "sampling" Cardano nodes.
                         
 category:               Cardano,
                         Trace,
@@ -172,9 +172,7 @@ library locli-slice
                       , fingertree
                       , ghc
                       , optparse-applicative-fork
-   --                 , optparse-generic
                       , ouroboros-consensus
-   --                 , ouroboros-network ^>= 0.8.1.0
                       , ouroboros-network-api
                       , quiet
                       , split

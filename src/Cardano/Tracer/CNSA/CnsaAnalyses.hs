@@ -7,37 +7,32 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+  -- FIXME: delete ^
+    
 module Cardano.Tracer.CNSA.CnsaAnalyses
  ( mkCnsaSinkAnalyses
  )
 where
 
+-- base:
 import           Control.Monad
-import           Data.Aeson
-import           Data.Functor.Contravariant
 import           Data.IORef
-import           Data.List (sortOn,splitAt,foldl',partition)
+import           Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict(Map)
-import qualified Data.Text as Text
-import           Data.Time
-import           Data.Time.Format (parseTimeOrError)
-import           Data.Time.Clock (UTCTime)
-import           GHC.Generics
-import           Network.HostName (HostName)
+import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
 
+-- cardano packages:
 import qualified Cardano.Logging.Types as Log
-import           Cardano.Logging.Trace
-import           Cardano.Logging.Tracer.DataPoint
 import           Cardano.Slotting.Block
 import           Cardano.Slotting.Slot
-import           Cardano.Slotting.Time
 import           Cardano.Tracer.MetaTrace
 import           Trace.Forward.Utils.DataPoint
 
--- package locli:
-import           Cardano.Analysis.API.Ground (Hash,Host)
+-- package locli: (or slice thereof)
 import qualified Cardano.Unlog.LogObject as LO
+import           Cardano.Analysis.API.Ground (Hash)
 
 -- package prometheus:
 import qualified System.Metrics.Prometheus.Concurrent.Registry as PR
@@ -48,9 +43,8 @@ import qualified System.Metrics.Prometheus.Metric.Histogram    as PH
 
 -- local to this pkg:
 import           Cardano.Tracer.CNSA.ParseLogs
-
-
 import           Cardano.Utils.SlotTimes
+
 
 ------------------------------------------------------------------------------
 -- Create *all* CNSA Sink Analyses
@@ -82,16 +76,17 @@ mkCnsaSinkAnalyses traceDP =
                    print lb -- Debugging
                    case lb of
                      LB_LOBody l -> sendTraceLogObj trObj l
-                     LB_Etc    l -> return ()
+                     LB_Etc    _ -> return ()
              putStrLn ""
 
          , PS.serveMetrics 8080 ["metrics"] (PR.sample registry)
              -- http://localhost:8080/metrics
+             -- FIXME: configure port
          )
 
 
 ------------------------------------------------------------------------------
--- Code for Analysis 2: mkBlockStatusAnalysis
+-- Code for Analysis: mkBlockStatusAnalysis
 --
 
 type BlockState = Map Hash BlockData
@@ -115,7 +110,7 @@ data BlockData =
             }
   deriving (Eq,Ord,Show)
 
-mkBlockStatusAnalysis traceDP registry =
+mkBlockStatusAnalysis _traceDP registry =
   do
   rawBlockData <- newIORef Map.empty
   topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
@@ -131,7 +126,9 @@ mkBlockStatusAnalysis traceDP registry =
         let time = Log.toTimestamp trObj
             withPeer f =
                 case getPeerFromTraceObject trObj of
-                  Left m  -> putStrLn "warning: expected peer, ignoring trace"
+                  Left s  -> putStrLn $
+                               "warning: expected peer, ignoring trace: " ++ s
+                                
                   Right p -> f p
             host = Log.toHostname trObj
             updBD = modifyIORef' rawBlockData
@@ -154,6 +151,9 @@ mkBlockStatusAnalysis traceDP registry =
           LO.LOBlockAddedToCurrentChain hash msize len ->
               updBD (addAddedToCurrent hash msize len host time)
 
+          _ ->
+              return ()
+              
         putStrLn "rawBlockData [0]:"
         () <- do
               raw0 <- readIORef rawBlockData
@@ -204,17 +204,54 @@ mkBlockStatusAnalysis traceDP registry =
 
   return doLogEvent
 
+defaultBlockData b s =
+  BlockData{ bl_blockNo            = b
+           , bl_slot               = s
+           , bl_downloadedHeader   = []
+           , bl_sendFetchRequest   = []
+           , bl_completedBlockFetch= []
+           , bl_addedToCurrentChain= Nothing
+           , bl_size               = Nothing
+           }
+  
+addSeenHeader :: SlotNo
+                 -> BlockNo
+                 -> Hash
+                 -> Peer
+                 -> UTCTime
+                 -> Map Hash BlockData
+                 -> Map Hash BlockData
+addSeenHeader slot block hash peer time =
+  Map.insertWith
+    (\_ o->o{bl_downloadedHeader= bl_downloadedHeader o ++ [(peer,time)]})
+    hash
+    (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
+
+addFetchRequest _hash _len _peer _time = id
+
+addFetchCompleted _hash _peer _time = id
+
+addAddedToCurrent _hash _msize _len _host _time = id
+
+
+---- Map utilities -------------------------------------------------
+
+-- | splitMapOn n f m -
+--     reduce size of Map m to n elements, use f to order element values.
+
 splitMapOn :: (Ord k, Ord b)
            => Int -> (a -> b) -> Map k a -> (Map k a, [(k,a)])
 splitMapOn n f m0 = (Map.fromList keepers, overflow)
   where
   (keepers,overflow) = splitAt n $ reverse $ sortOn (f . snd) $ Map.toList m0
 
+---- Testing -------------------------------------------------------
+
 test1 =
   do
-  let input0 = Map.fromList
+  let input' = Map.fromList
              $ [(5-s, defaultBlockData 0 (SlotNo s)) | s <- [0..4]]
-  rawBlockData <- newIORef input0
+  rawBlockData <- newIORef input'
   putStrLn "rawBlockData [0]:"
   () <- do
         raw0 <- readIORef rawBlockData
@@ -246,49 +283,3 @@ myPr (m,xs) = do
               putStrLn "extra:"
               mapM_ print $ xs
               
-defaultBlockData b s =
-  BlockData{ bl_blockNo            = b
-           , bl_slot               = s
-           , bl_downloadedHeader   = []
-           , bl_sendFetchRequest   = []
-           , bl_completedBlockFetch= []
-           , bl_addedToCurrentChain= Nothing
-           , bl_size               = Nothing
-           }
-  
-addSeenHeader :: SlotNo
-                 -> BlockNo
-                 -> Hash
-                 -> Peer
-                 -> UTCTime
-                 -> Map Hash BlockData
-                 -> Map Hash BlockData
-addSeenHeader slot block hash peer time =
-  Map.insertWith
-    (\_ o->o{bl_downloadedHeader= bl_downloadedHeader o ++ [(peer,time)]})
-    hash
-    (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
-
-addFetchRequest _hash _len _peer _time = id
-
-addFetchCompleted _hash _peer _time = id
-
-addAddedToCurrent _hash _msize _len _host _time = id
-
-
-------------------------------------------------------------------------------
--- 'specifications' for datapoints/etc: ...
---
-{-
--- raw, updated on each LogEvent:
-rawBlockState :: BlockState
-
--- derived:
-blockPropDelays1 :: (BlockNo, Map Addr Delay)
-blockPropDelays  :: Map Hash (Map Addr Delay)
-blockHeights     :: Map Addr BlockNo
-  -- for each peer, or sampler, the highest blockNo from that peer
-
-(rawBlockState,blockPropDelays,blockPropDelays1,blockHeights) = stub
--}
-
