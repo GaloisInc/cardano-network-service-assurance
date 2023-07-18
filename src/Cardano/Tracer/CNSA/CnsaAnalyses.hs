@@ -112,96 +112,101 @@ data BlockData =
 
 mkBlockStatusAnalysis _traceDP registry =
   do
-  rawBlockData <- newIORef Map.empty
+  rawBlockData    <- newIORef Map.empty
   topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
   penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
   propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
                        [0.1,0.2..2.0]
                        registry
 
-  let doLogEvent :: Log.TraceObject -> LO.LOBody -> IO ()
-      doLogEvent trObj logObj =
-        do
-        putStrLn "recvd traceLogObj"
-        let time = Log.toTimestamp trObj
-            withPeer f =
-                case getPeerFromTraceObject trObj of
-                  Left s  -> putStrLn $
-                               "warning: expected peer, ignoring trace: " ++ s
-                                
-                  Right p -> f p
-            host = Log.toHostname trObj
-            updBD = modifyIORef' rawBlockData
+  let
+    doLogEvent :: Log.TraceObject -> LO.LOBody -> IO ()
+    doLogEvent trObj logObj =
+      do
+      putStrLn "recvd traceLogObj"
+      let time = Log.toTimestamp trObj
+          withPeer f =
+              case getPeerFromTraceObject trObj of
+                Left s  -> putStrLn $
+                             "warning: expected peer, ignoring trace: " ++ s
+                              
+                Right p -> f p
+          host = Log.toHostname trObj
+          updBD = modifyIORef' rawBlockData
 
-        -- Update 'rawBlockData :: IORef BlockState' :
+      -- Update 'rawBlockData :: IORef BlockState' :
+      case logObj of 
+        LO.LOChainSyncClientSeenHeader slotno blockno hash ->
+            withPeer $ \peer->
+              updBD (addSeenHeader slotno blockno hash peer time)
 
-        case logObj of 
-          LO.LOChainSyncClientSeenHeader slotno blockno hash ->
-              withPeer $ \peer->
-                updBD (addSeenHeader slotno blockno hash peer time)
+        LO.LOBlockFetchClientRequested hash len ->
+            withPeer $ \peer->
+              updBD (addFetchRequest hash len peer time)
+    
+        LO.LOBlockFetchClientCompletedFetch hash ->
+            withPeer $ \peer->
+              updBD (addFetchCompleted hash peer time)
 
-          LO.LOBlockFetchClientRequested hash len ->
-              withPeer $ \peer->
-                updBD (addFetchRequest hash len peer time)
-     
-          LO.LOBlockFetchClientCompletedFetch hash ->
-              withPeer $ \peer->
-                updBD (addFetchCompleted hash peer time)
+        LO.LOBlockAddedToCurrentChain hash msize len ->
+            updBD (addAddedToCurrent hash msize len host time)
 
-          LO.LOBlockAddedToCurrentChain hash msize len ->
-              updBD (addAddedToCurrent hash msize len host time)
-
-          _ ->
-              return ()
-              
-        putStrLn "rawBlockData [0]:"
-        () <- do
-              raw0 <- readIORef rawBlockData
-              mapM_ print $ reverse $ sortOn (bl_slot . snd) $ Map.toList raw0
-
-        -- Post-processing:
-        overflowList <- atomicModifyIORef'
-                          rawBlockData
-                          (splitMapOn 3 bl_slot)  -- FIXME: ??
-        putStrLn "overflow:"
-        mapM_ print overflowList
-
-        raw <- readIORef rawBlockData
-        let raw' = reverse $ sortOn (bl_slot . snd)  $ Map.toList raw
-            blocksBySlot = map snd raw'
+        _ ->
+            return ()
             
-        -- Debugging:
-        putStrLn "rawBlockData:"
-        mapM_ print raw'
-        putStrLn ""
+      putStrLn "rawBlockData [0]:"
+      () <- do
+            raw0 <- readIORef rawBlockData
+            mapM_ print $ reverse $ sortOn (bl_slot . snd) $ Map.toList raw0
 
-        -- Transform/Metrics:
-        when (length blocksBySlot > 2) $
-          do
-          -- slot metrics:
-          let
-            SlotNo topSlot         = bl_slot (blocksBySlot !! 0)
-            SlotNo penultimateSlot = bl_slot (blocksBySlot !! 1)
-          PG.set (fromIntegral topSlot        ) topSlotGauge
-          PG.set (fromIntegral penultimateSlot) penultSlotGauge
-            -- UGH: no integers? everything a float?!
-            -- see node's prometheus output: has integers
+      -- Post-processing:
+      overflowList <- atomicModifyIORef'
+                        rawBlockData
+                        (splitMapOn 3 bl_slot)  -- FIXME: ??
+      putStrLn "overflow:"
+      mapM_ print overflowList
 
-          -- propagation metrics for penultimateSlot:
-          let
-            b = blocksBySlot !! 1
-            cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
-            delays  = map 
-                       (\(p,t)->(p, diffUTCTime t (slotStart (bl_slot b))))
-                       (bl_downloadedHeader b)
-          putStrLn $ unwords ["slot_top:", show topSlot]
-          putStrLn $ unwords ["slot_pen:", show penultimateSlot, "; delays:"]
-          print delays
-          when (any (\(_,d)-> d < 0) delays) $
-            putStrLn "ERROR: NEGATIVE DELAY"
-          mapM_ (\v-> PH.observe v propDelaysHist)
-                (map (cvtTime . snd) delays)
+      raw <- readIORef rawBlockData
+      let raw' = reverse $ sortOn (bl_slot . snd)  $ Map.toList raw
+          blocksBySlot = map snd raw'
+          
+      -- Debugging:
+      putStrLn "rawBlockData:"
+      mapM_ print raw'
+      putStrLn ""
 
+      -- Transform/Metrics:
+      case blocksBySlot of
+        b0:b1:_ ->
+            do
+            -- slot metrics:
+            let
+              SlotNo slot0 = bl_slot b0
+              SlotNo slot1 = bl_slot b1
+            PG.set (fromIntegral slot0) topSlotGauge
+            PG.set (fromIntegral slot1) penultSlotGauge
+              -- NOTE: No integers? everything a float?!
+              --       See node's prometheus output: has integers
+
+            -- propagation metrics for b1/slot1 (penultimate):
+            let
+              cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
+              delays  = map 
+                          (\(p,t)->
+                             (p, diffUTCTime t (slotStart (SlotNo slot1))))
+                          (bl_downloadedHeader b1)
+            putStrLn $ unwords ["slot_top:", show slot0]
+            putStrLn $ unwords ["slot_pen:", show slot1, "; delays:"]
+            print delays
+            when (any (\(_,d)-> d < 0) delays) $
+              putStrLn "ERROR: NEGATIVE DELAY"
+            mapM_ (\v-> PH.observe v propDelaysHist)
+                  (map (cvtTime . snd) delays)
+
+        -- do nothing until we have at least two blocks recorded:
+        _ ->
+            return ()
+              
   return doLogEvent
 
 defaultBlockData b s =
@@ -244,6 +249,7 @@ splitMapOn :: (Ord k, Ord b)
 splitMapOn n f m0 = (Map.fromList keepers, overflow)
   where
   (keepers,overflow) = splitAt n $ reverse $ sortOn (f . snd) $ Map.toList m0
+
 
 ---- Testing -------------------------------------------------------
 
