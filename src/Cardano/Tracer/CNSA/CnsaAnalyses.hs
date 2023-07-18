@@ -62,8 +62,6 @@ mkCnsaSinkAnalyses traceDP =
   do
   registry <- PR.new
 
-  traceCompletedBlockFetchTimes <- mkCompletedBlockFetchTrace traceDP
-
   -- trivial 'proof of life' metric:
   metric_traceCtr <- PR.registerCounter "count_of_tracelogs" mempty registry
 
@@ -72,7 +70,6 @@ mkCnsaSinkAnalyses traceDP =
            -- handle TraceObject:
            \trObj->
              do
-             traceWith traceCompletedBlockFetchTimes trObj
              PC.inc metric_traceCtr
              print trObj          -- Debugging
              case getLogBody trObj of
@@ -295,61 +292,3 @@ blockHeights     :: Map Addr BlockNo
 (rawBlockState,blockPropDelays,blockPropDelays1,blockHeights) = stub
 -}
 
-------------------------------------------------------------------------------
--- Code for [Toy] Analysis 1: mkCompletedBlockFetchTrace
---
-
-mkCompletedBlockFetchTrace ::
-  Trace IO DataPoint -> IO (Trace IO Log.TraceObject)
-mkCompletedBlockFetchTrace traceDP =
-  do
-  bfccbfDP :: Trace IO CompletedBlockFetchTimes
-    <- mkDataPointTracer traceDP
-
-  let hostTimesTr :: Trace IO HostTimes
-      hostTimesTr = contramap CompletedBlockFetchTimes bfccbfDP
-
-  mkLastHostTimeOf
-    ["BlockFetch","Client","CompletedBlockFetch"]
-    hostTimesTr
-
-mkLastHostTimeOf :: [Text.Text]
-                 -> Trace IO HostTimes
-                 -> IO (Trace IO Log.TraceObject)
-mkLastHostTimeOf ns tr =
-  do
-  traceWith tr Map.empty  -- Cause this datapoint to immediately have a value.
-  foldTraceM compute Map.empty (contramap Log.unfold tr)
-
-  where
-  compute m _c to' =
-    if ns == Log.toNamespace to' then
-      Map.insert (Log.toHostname to') (Log.toTimestamp to') m
-    else
-      m
-
-------------------------------------------------------------------------------
--- CompletedBlockFetchTimes datapoint: type and boilerplate
---
-
--- | map 'HostName' to a 'UTCTime'
-type HostTimes = Map.Map Network.HostName.HostName UTCTime
-
--- Create a datapoint
-
--- | CompletedBlockFetchTimes - for tracking times of this trace object:
---             ["BlockFetch","Client","CompletedBlockFetch"]
-newtype CompletedBlockFetchTimes = CompletedBlockFetchTimes HostTimes
-                                   deriving (Eq,Ord,Read,Show,Generic)
-deriving instance ToJSON CompletedBlockFetchTimes
-
-instance Log.MetaTrace CompletedBlockFetchTimes
-  where
-  namespaceFor _  = Log.Namespace [] ["BlockFetch","LastCompletedTimes"]
-  severityFor _ _ = Just Info
-  documentFor _   = Just "map of most recent CompletedBlockFetch times for all connected nodes"
-  allNamespaces   = [Log.namespaceFor (undefined :: CompletedBlockFetchTimes)]
-
-
-stub :: a
-stub = error "stub"
