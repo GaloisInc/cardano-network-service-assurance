@@ -45,6 +45,8 @@ source-repository-package
     trace-dispatcher
     trace-forward
     cardano-git-rev
--- later: bench/locli ?
    
+package snap-server
+  flags: +openssl
+
     
