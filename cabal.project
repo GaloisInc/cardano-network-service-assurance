@@ -26,14 +26,18 @@ test-show-details: direct
 -- Always write GHC env files, because they are needed for ghci.
 write-ghc-environment-files: always
 
--- The key thing here is that we want to build a cardano-tracer exe. that
--- contains the reforwarding extension; so we need to include this commit:
+                             
+-- The key thing here in the following 'source-repository-package' is
+-- that we want to build a cardano-tracer executable that contains the
+-- reforwarding extension; so we need to capture the repo after this
+-- commit:
 --
 --   efbf9283.. : refactor cardano-tracer-bench.hs
 --   Fri Jun 2 17:04:18 2023 : Mark Tullsen
 --
 -- And secondly, we want to have a consistent set of packages from 
--- the 'cardano-node' repo.
+-- the 'cardano-node' repo as we use them as libraries for cnsa.
+   
                                       
 source-repository-package                             
   type: git
