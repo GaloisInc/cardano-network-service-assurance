@@ -82,6 +82,7 @@ library cnsa-sink-lib
   exposed-modules:      Cardano.Tracer.CNSA.CnsaSink
                         Cardano.Tracer.CNSA.CnsaAnalyses
                         Cardano.Tracer.CNSA.ParseLogs
+                        Cardano.Utils.SlotTimes
                         
   build-depends:        aeson
                       , async-extras
