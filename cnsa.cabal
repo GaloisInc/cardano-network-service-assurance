@@ -124,9 +124,9 @@ executable cnsa-sink
 --   this is a small slice (from master) of the cardano-node/bench/locli
 --   package.
 -- This is a stopgap measure due to
---  - locli-1.29 CHAP version is not building. 
---  - locli is not exporting Cardano.Unlog.LogObject.interpret
---    (currently we have a one line change to export this)    
+--  1. locli-1.29 CHAP version is not building. 
+--  2. locli is not exporting Cardano.Unlog.LogObject.interpret
+--     (currently we have a one line change to export this)    
 
 library locli-slice
   import:               project-config
