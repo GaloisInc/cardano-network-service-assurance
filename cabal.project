@@ -15,21 +15,9 @@ repository cardano-haskell-packages
 index-state:
   , hackage.haskell.org 2023-05-10T10:34:57Z
   , cardano-haskell-packages 2023-06-15T12:05:43Z
-
+    
 packages:
   ./
-
-package cardano-tracer
-  -- ghc-options: -Werror
-
-package locli
-  ghc-options: -Werror
-
-package trace-dispatcher
-  ghc-options: -Werror
-
-package trace-forward
-  ghc-options: -Werror
 
 tests: True
 
@@ -38,3 +26,25 @@ test-show-details: direct
 -- Always write GHC env files, because they are needed for ghci.
 write-ghc-environment-files: always
 
+-- The key thing here is that we want to build a cardano-tracer exe. that
+-- contains the reforwarding extension; so we need to include this commit:
+--
+--   efbf9283.. : refactor cardano-tracer-bench.hs
+--   Fri Jun 2 17:04:18 2023 : Mark Tullsen
+--
+-- And secondly, we want to have a consistent set of packages from 
+-- the 'cardano-node' repo.
+                                      
+source-repository-package                             
+  type: git
+  location: https://github.com/input-output-hk/cardano-node
+  tag: 3c20e53b7f8f4864af476e50d4eba05eb6c30a21
+  subdir:
+    cardano-node
+    cardano-tracer
+    trace-dispatcher
+    trace-forward
+    cardano-git-rev
+-- later: bench/locli ?
+   
+    

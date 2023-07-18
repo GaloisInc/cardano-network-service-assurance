@@ -4,7 +4,9 @@ name:                   cnsa
 version:                0.0.9
 synopsis:               Tools for Cardano Network Service Assurance
 description:            A set of tools that allow for doing network service
-                        assurance over a set of Cardano nodes.
+                        assurance of the cardano network using a set of
+                        ``sampling' Cardano nodes.
+                        
 category:               Cardano,
                         Trace,
 copyright:              Galois, Inc.
@@ -187,7 +189,8 @@ library locli-slice
   hs-source-dirs:       locli-src
 
   exposed-modules:      Cardano.Unlog.LogObject
-  other-modules:        Cardano.Analysis.API.Ground
+                        Cardano.Analysis.API.Ground
+  other-modules:        
                         Cardano.Util
                         Data.CDF
                         Data.DataDomain
