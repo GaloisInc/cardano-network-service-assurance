@@ -23,11 +23,14 @@ import qualified Data.Map.Strict as Map
 import           Data.Map.Strict(Map)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
 
+-- package contra-tracer: (not to be confused with Cardano.Tracer....)
+import qualified "contra-tracer" Control.Tracer as CT
+  
 -- cardano packages:
 import qualified Cardano.Logging.Types as Log
 import           Cardano.Slotting.Block
 import           Cardano.Slotting.Slot
-import           Cardano.Tracer.MetaTrace
+import           Cardano.Tracer.MetaTrace hiding (traceWith)
 import           Trace.Forward.Utils.DataPoint
 
 -- package locli: (or slice thereof)
@@ -51,33 +54,34 @@ import           Cardano.Utils.SlotTimes
 --
 
 mkCnsaSinkAnalyses :: Trace IO DataPoint
+                   -> CT.Tracer IO String
                    -> IO (Log.TraceObject -> IO (), IO ())
-mkCnsaSinkAnalyses traceDP =
+mkCnsaSinkAnalyses traceDP debugTr =
   do
   registry <- PR.new
 
   -- trivial 'proof of life' metric:
   metric_traceCtr <- PR.registerCounter "count_of_tracelogs" mempty registry
 
-  sendTraceLogObj <- mkBlockStatusAnalysis traceDP registry
+  sendTraceLogObj <- mkBlockStatusAnalysis traceDP debugTr registry
   return (
            -- handle TraceObject:
            \trObj->
              do
              PC.inc metric_traceCtr
-             print trObj          -- Debugging
+             
+             CT.traceWith debugTr ("recvd traceLogObj: " ++ show trObj) 
              case getLogBody trObj of
                Left s -> putStrLn $ unlines
-                           [ "Warn: unparsed TraceObject:"
+                           [ "Warn: unparseable TraceObject:"
                            , "  " ++ s
                            ]
                Right lb ->
                    do
-                   print lb -- Debugging
+                   CT.traceWith debugTr ("parsed log body: " ++ show lb)
                    case lb of
                      LB_LOBody l -> sendTraceLogObj trObj l
                      LB_Etc    _ -> return ()
-             putStrLn ""
 
          , PS.serveMetrics 8080 ["metrics"] (PR.sample registry)
              -- http://localhost:8080/metrics
@@ -110,7 +114,17 @@ data BlockData =
             }
   deriving (Eq,Ord,Show)
 
-mkBlockStatusAnalysis _traceDP registry =
+rawBlockDataMax :: Int
+rawBlockDataMax = 5
+  -- FIXME: update to 10 ?
+  -- FIXME: turn into CL parameter?
+
+mkBlockStatusAnalysis
+  :: Trace IO DataPoint
+  -> CT.Tracer IO String
+  -> PR.Registry
+  -> IO (Log.TraceObject -> LO.LOBody -> IO ())
+mkBlockStatusAnalysis _traceDP debugTr registry =
   do
   rawBlockData    <- newIORef Map.empty
   topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
@@ -123,7 +137,6 @@ mkBlockStatusAnalysis _traceDP registry =
     doLogEvent :: Log.TraceObject -> LO.LOBody -> IO ()
     doLogEvent trObj logObj =
       do
-      putStrLn "recvd traceLogObj"
       let time = Log.toTimestamp trObj
           withPeer f =
               case getPeerFromTraceObject trObj of
@@ -154,56 +167,67 @@ mkBlockStatusAnalysis _traceDP registry =
         _ ->
             return ()
             
-      putStrLn "rawBlockData [0]:"
+      let getSortedByKeys m =
+              reverse
+            $ sortOn (bl_slot . snd)
+            $ Map.toList m
+
+          traceBlockData nm es =
+            do
+            CT.traceWith debugTr (nm ++ " block data:")
+            mapM_ (CT.traceWith debugTr . show) es
+            CT.traceWith debugTr ""
+            -- FIXME[F3]: make fancier
+            
+      -- debugging:
       () <- do
             raw0 <- readIORef rawBlockData
-            mapM_ print $ reverse $ sortOn (bl_slot . snd) $ Map.toList raw0
+            traceBlockData "rawBlockData[pre]" (getSortedByKeys raw0)
 
-      -- Post-processing:
+      -- update 'rawBlockData', removing overflow:
       overflowList <- atomicModifyIORef'
                         rawBlockData
-                        (splitMapOn 3 bl_slot)  -- FIXME: ??
-      putStrLn "overflow:"
-      mapM_ print overflowList
+                        (splitMapOn rawBlockDataMax bl_slot)
 
-      raw <- readIORef rawBlockData
-      let raw' = reverse $ sortOn (bl_slot . snd)  $ Map.toList raw
-          blocksBySlot = map snd raw'
-          
-      -- Debugging:
-      putStrLn "rawBlockData:"
-      mapM_ print raw'
-      putStrLn ""
+      -- Process 'overflowList': (print to stdout for now) [FIXME]
+      if null overflowList then
+        CT.traceWith debugTr ("Overflow: none")
+      else
+        mapM_ (\b-> putStrLn ("Overflow: " ++ show b))
+              overflowList
 
-      -- Transform/Metrics:
-      case blocksBySlot of
+      -- Update Metrics:
+      raw1 <- getSortedByKeys <$> readIORef rawBlockData
+      traceBlockData "rawBlockData[post]" raw1
+      case map snd raw1 of
         b0:b1:_ ->
             do
-            -- slot metrics:
             let
               SlotNo slot0 = bl_slot b0
               SlotNo slot1 = bl_slot b1
+
+            -- update slot metrics:
             PG.set (fromIntegral slot0) topSlotGauge
             PG.set (fromIntegral slot1) penultSlotGauge
               -- NOTE: No integers? everything a float?!
               --       See node's prometheus output: has integers
 
-            -- propagation metrics for b1/slot1 (penultimate):
+            -- update propagation metrics for b1/slot1 (penultimate):
             let
               cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
               delays  = map 
                           (\(p,t)->
                              (p, diffUTCTime t (slotStart (SlotNo slot1))))
                           (bl_downloadedHeader b1)
-            putStrLn $ unwords ["slot_top:", show slot0]
-            putStrLn $ unwords ["slot_pen:", show slot1, "; delays:"]
-            print delays
+            CT.traceWith debugTr $ unwords ["slot_top:", show slot0]
+            CT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
+            CT.traceWith debugTr $ unwords ["delays:"  , show delays]
             when (any (\(_,d)-> d < 0) delays) $
               putStrLn "ERROR: NEGATIVE DELAY"
             mapM_ (\v-> PH.observe v propDelaysHist)
                   (map (cvtTime . snd) delays)
 
-        -- do nothing until we have at least two blocks recorded:
+        -- unless we have at least two blocks recorded, do nothing:
         _ ->
             return ()
               
@@ -220,12 +244,12 @@ defaultBlockData b s =
            }
   
 addSeenHeader :: SlotNo
-                 -> BlockNo
-                 -> Hash
-                 -> Peer
-                 -> UTCTime
-                 -> Map Hash BlockData
-                 -> Map Hash BlockData
+              -> BlockNo
+              -> Hash
+              -> Peer
+              -> UTCTime
+              -> Map Hash BlockData
+              -> Map Hash BlockData
 addSeenHeader slot block hash peer time =
   Map.insertWith
     (\_ o->o{bl_downloadedHeader= bl_downloadedHeader o ++ [(peer,time)]})
