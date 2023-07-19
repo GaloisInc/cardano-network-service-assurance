@@ -25,7 +25,10 @@ import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
 
 -- package contra-tracer: (not to be confused with Cardano.Tracer....)
 import qualified "contra-tracer" Control.Tracer as CT
-  
+
+-- package cardano-strict-containers:
+import           Data.Maybe.Strict
+
 -- cardano packages:
 import qualified Cardano.Logging.Types as Log
 import           Cardano.Slotting.Block
@@ -72,7 +75,7 @@ mkCnsaSinkAnalyses traceDP debugTr =
              
              CT.traceWith debugTr ("recvd traceLogObj: " ++ show trObj) 
              case getLogBody trObj of
-               Left s -> warn
+               Left s -> warnMsg
                            [ "unparseable TraceObject:", s]
                Right lb ->
                    do
@@ -93,8 +96,8 @@ mkCnsaSinkAnalyses traceDP debugTr =
 
 type BlockState = Map Hash BlockData
 
--- FIXME: if we get any of the 'other' messages before we see
--- downloaded header?
+-- If we get any of the 'other' messages before we see the downloaded header,
+-- we print warnings and ignore the log messag.
 
 type Delay = Int      -- MSecs -- TODO
 
@@ -115,7 +118,6 @@ data BlockData =
 blockStateMax :: Int
 blockStateMax = 5
   -- FIXME: update to 10 ?
-  -- FIXME: turn into CL parameter.
 
 mkBlockStatusAnalysis
   :: Trace IO DataPoint
@@ -138,7 +140,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
       let time = Log.toTimestamp trObj
           withPeer f =
               case getPeerFromTraceObject trObj of
-                Left s  -> warn ["expected peer, ignoring trace: " ++ s]
+                Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
                               
                 Right p -> f p
           host = Log.toHostname trObj
@@ -149,7 +151,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
                       Just m' -> return (Just m')
                       Nothing ->
                         do
-                        warn 
+                        warnMsg 
                           ["ignoring Log, hash not in current block data: "
                            ++ show k]
                         return Nothing
@@ -163,14 +165,17 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
 
         LO.LOBlockFetchClientRequested hash len ->
             withPeer $ \peer->
-              updateBlockData (addFetchRequest hash len peer time)
+              updateBlockDataByKey hash
+                (addFetchRequest hash len peer time)
     
         LO.LOBlockFetchClientCompletedFetch hash ->
             withPeer $ \peer->
-              updateBlockDataByKey hash (addFetchCompleted hash peer time)
+              updateBlockDataByKey hash
+                (addFetchCompleted hash peer time)
 
         LO.LOBlockAddedToCurrentChain hash msize len ->
-            updateBlockData (addAddedToCurrent hash msize len host time)
+            updateBlockDataByKey hash
+              (addAddedToCurrent hash msize len host time)
 
         _ ->
             return ()
@@ -231,7 +236,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
             CT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
             CT.traceWith debugTr $ unwords ["delays:"  , show delays]
             when (any (\(_,d)-> d < 0) delays) $
-              putStrLn "ERROR: NEGATIVE DELAY"
+              errorMsg ["Negative Delay"]
             mapM_ (\v-> PH.observe v propDelaysHist)
                   (map (cvtTime . snd) delays)
 
@@ -264,20 +269,16 @@ addSeenHeader slot block hash peer time =
     hash
     (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
 
-addFetchRequest _hash _len peer time m = m
-  {-
-  ---
-  Warn if not in map.
-  Map.insertWith
-    (\_ o->o{bl_sendFetchRequest= bl_sendFetchRequest o ++ [(peer,time)]})
-    hash
-    (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
-  -}
+addFetchRequest _hash _len peer time d =
+  d{bl_sendFetchRequest= (peer,time) : bl_sendFetchRequest d}
   
-addFetchCompleted _hash _peer _time m = m
+addFetchCompleted _hash peer time d =
+  d{bl_completedBlockFetch= (peer,time) : bl_completedBlockFetch d}
 
-addAddedToCurrent _hash _msize _len _host _time m = m
-
+addAddedToCurrent _hash msize _len _host time d =
+  d{ bl_addedToCurrentChain = Just time
+   , bl_size                = strictMaybeToMaybe msize
+   }
 
 ---- Map utilities -------------------------------------------------
 
@@ -312,10 +313,17 @@ modifyIORefMaybe ref f =
 
 ---- Etc utilities -------------------------------------------------
 
+warnMsg :: [String] -> IO ()
+warnMsg = genericMsg "Warning: "
+
+errorMsg :: [String] -> IO ()
+errorMsg = genericMsg "Error: "
+
 -- FIXME: make more configurable/?
-warn :: [String] -> IO ()
-warn []     = return ()
-warn (s:ss) = mapM_ putStrLn $ ("Warning: "++s) : map ("  "++) ss
+genericMsg :: String -> [String] -> IO ()
+genericMsg tg []     = return ()
+genericMsg tg (s:ss) = mapM_ putStrLn $ (tg++s) : map ("  "++) ss
+
 
 ---- Testing -------------------------------------------------------
 
