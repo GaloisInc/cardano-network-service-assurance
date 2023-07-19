@@ -22,8 +22,7 @@ hasForwarding:
     contents: "/tmp/reforwarder.sock"
   - [["BlockFetch","Client"],
      ["ChainSync","Client"],
-     ["ChainDB","AddBlockEvent"],
-     ["Net","Peers","List","PeersFromNodeKernel"]
+     ["ChainDB","AddBlockEvent"]
 ]
   - {}
 logging:
