@@ -112,8 +112,8 @@ data BlockData =
             }
   deriving (Eq,Ord,Show)
 
-rawBlockDataMax :: Int
-rawBlockDataMax = 5
+blockStateMax :: Int
+blockStateMax = 5
   -- FIXME: update to 10 ?
   -- FIXME: turn into CL parameter.
 
@@ -124,7 +124,7 @@ mkBlockStatusAnalysis
   -> IO (Log.TraceObject -> LO.LOBody -> IO ())
 mkBlockStatusAnalysis _traceDP debugTr registry =
   do
-  rawBlockData    <- newIORef Map.empty
+  blockStateRef   <- newIORef Map.empty
   topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
   penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
   propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
@@ -142,9 +142,9 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
                               
                 Right p -> f p
           host = Log.toHostname trObj
-          updateBlockData f = modifyIORef' rawBlockData f
+          updateBlockData f = modifyIORef' blockStateRef f
           updateBlockDataByKey k f =
-            modifyIORefMaybe rawBlockData
+            modifyIORefMaybe blockStateRef
               (\m-> case adjustIfMember f k m of
                       Just m' -> return (Just m')
                       Nothing ->
@@ -155,7 +155,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
                         return Nothing
               )         
           
-      -- Update 'rawBlockData :: IORef BlockState' :
+      -- Update 'blockStateRef :: IORef BlockState' :
       case logObj of 
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
@@ -180,7 +180,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
             $ sortOn (bl_slot . snd)
             $ Map.toList m
 
-          traceBlockData nm es =
+          debugTraceBlockData nm es =
             do
             CT.traceWith debugTr (nm ++ " block data:")
             mapM_ (CT.traceWith debugTr . show) es
@@ -189,13 +189,13 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
             
       -- debugging:
       () <- do
-            raw0 <- readIORef rawBlockData
-            traceBlockData "rawBlockData[pre]" (getSortedByKeys raw0)
+            raw0 <- readIORef blockStateRef
+            debugTraceBlockData "blockState[pre]" (getSortedByKeys raw0)
 
-      -- update 'rawBlockData', removing overflow:
+      -- update 'blockStateRef', removing overflow:
       overflowList <- atomicModifyIORef'
-                        rawBlockData
-                        (splitMapOn rawBlockDataMax bl_slot)
+                        blockStateRef
+                        (splitMapOn blockStateMax bl_slot)
 
       -- Process 'overflowList': (print to stdout for now) [FIXME]
       if null overflowList then
@@ -205,8 +205,8 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
               overflowList
 
       -- Update Metrics:
-      raw1 <- getSortedByKeys <$> readIORef rawBlockData
-      traceBlockData "rawBlockData[post]" raw1
+      raw1 <- getSortedByKeys <$> readIORef blockStateRef
+      debugTraceBlockData "blockState[post]" raw1
       case map snd raw1 of
         b0:b1:_ ->
             do
@@ -323,22 +323,22 @@ test1 =
   do
   let input' = Map.fromList
              $ [(5-s, defaultBlockData 0 (SlotNo s)) | s <- [0..4]]
-  rawBlockData <- newIORef input'
-  putStrLn "rawBlockData [0]:"
+  blockStateRef <- newIORef input'
+  putStrLn "blockState [0]:"
   () <- do
-        raw0 <- readIORef rawBlockData
+        raw0 <- readIORef blockStateRef
         mapM_ print $ reverse $ sortOn (bl_slot . snd) $ Map.toList raw0
   overflowList <- atomicModifyIORef'
-                    rawBlockData
+                    blockStateRef
                     (splitMapOn 4 bl_slot)
   putStrLn "overflow:"
   mapM_ print overflowList
 
-  raw <- readIORef rawBlockData
+  raw <- readIORef blockStateRef
   let raw' = reverse $ sortOn (bl_slot . snd)  $ Map.toList raw
 
   -- Debugging:
-  putStrLn "rawBlockData:"
+  putStrLn "blockState:"
   mapM_ print raw'
   putStrLn ""
   
