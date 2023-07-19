@@ -7,9 +7,6 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
-  -- FIXME: delete ^
-    
 module Cardano.Tracer.CNSA.CnsaAnalyses
  ( mkCnsaSinkAnalyses
  )
@@ -22,6 +19,7 @@ import           Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict(Map)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
+import           Network.HostName (HostName)
 
 -- package contra-tracer: (not to be confused with Cardano.Tracer....)
 import qualified "contra-tracer" Control.Tracer as CT
@@ -99,7 +97,7 @@ type BlockState = Map Hash BlockData
 -- If we get any of the 'other' messages before we see the downloaded header,
 -- we print warnings and ignore the log messag.
 
-type Delay = Int      -- MSecs -- TODO
+-- type Delay = Int      -- MSecs -- TODO
 
 data BlockData =
   BlockData { bl_blockNo             :: BlockNo
@@ -117,8 +115,8 @@ data BlockData =
 
 blockStateMax :: Int
 blockStateMax = 5
-  -- FIXME: update to 10 ?
-
+  -- FIXME: make configurable.
+  
 mkBlockStatusAnalysis
   :: Trace IO DataPoint
   -> CT.Tracer IO String
@@ -126,7 +124,7 @@ mkBlockStatusAnalysis
   -> IO (Log.TraceObject -> LO.LOBody -> IO ())
 mkBlockStatusAnalysis _traceDP debugTr registry =
   do
-  blockStateRef   <- newIORef Map.empty
+  blockStateRef   <- newIORef (Map.empty :: BlockState)
   topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
   penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
   propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
@@ -180,7 +178,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
         _ ->
             return ()
             
-      let getSortedByKeys m =
+      let getSortedBySlots m =
               reverse
             $ sortOn (bl_slot . snd)
             $ Map.toList m
@@ -192,10 +190,10 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
             CT.traceWith debugTr ""
             -- FIXME[F3]: make fancier
             
-      -- debugging:
+      -- debugTracing:
       () <- do
             raw0 <- readIORef blockStateRef
-            debugTraceBlockData "blockState[pre]" (getSortedByKeys raw0)
+            debugTraceBlockData "blockState[pre]" (getSortedBySlots raw0)
 
       -- update 'blockStateRef', removing overflow:
       overflowList <- atomicModifyIORef'
@@ -210,7 +208,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
               overflowList
 
       -- Update Metrics:
-      raw1 <- getSortedByKeys <$> readIORef blockStateRef
+      raw1 <- getSortedBySlots <$> readIORef blockStateRef
       debugTraceBlockData "blockState[post]" raw1
       case map snd raw1 of
         b0:b1:_ ->
@@ -246,6 +244,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
               
   return doLogEvent
 
+defaultBlockData :: BlockNo -> SlotNo -> BlockData
 defaultBlockData b s =
   BlockData{ bl_blockNo            = b
            , bl_slot               = s
@@ -269,16 +268,29 @@ addSeenHeader slot block hash peer time =
     hash
     (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
 
+addFetchRequest :: Hash
+                   -> Int -> Peer -> UTCTime -> BlockData -> BlockData
 addFetchRequest _hash _len peer time d =
   d{bl_sendFetchRequest= (peer,time) : bl_sendFetchRequest d}
+  -- what is _len?
   
+addFetchCompleted :: Hash -> Peer -> UTCTime -> BlockData -> BlockData
 addFetchCompleted _hash peer time d =
   d{bl_completedBlockFetch= (peer,time) : bl_completedBlockFetch d}
 
+addAddedToCurrent 
+  :: Hash
+  -> StrictMaybe Int
+  -> Int
+  -> HostName
+  -> UTCTime
+  -> BlockData -> BlockData
 addAddedToCurrent _hash msize _len _host time d =
   d{ bl_addedToCurrentChain = Just time
    , bl_size                = strictMaybeToMaybe msize
    }
+  -- FIXME: msize vs. _len?? [in current testing: always Nothing]
+  
 
 ---- Map utilities -------------------------------------------------
 
@@ -311,6 +323,7 @@ modifyIORefMaybe ref f =
     Just a' -> writeIORef ref a'
     Nothing -> return ()
 
+
 ---- Etc utilities -------------------------------------------------
 
 warnMsg :: [String] -> IO ()
@@ -319,47 +332,9 @@ warnMsg = genericMsg "Warning: "
 errorMsg :: [String] -> IO ()
 errorMsg = genericMsg "Error: "
 
+
 -- FIXME: make more configurable/?
 genericMsg :: String -> [String] -> IO ()
-genericMsg tg []     = return ()
+genericMsg _  []     = return ()
 genericMsg tg (s:ss) = mapM_ putStrLn $ (tg++s) : map ("  "++) ss
 
-
----- Testing -------------------------------------------------------
-
-test1 =
-  do
-  let input' = Map.fromList
-             $ [(5-s, defaultBlockData 0 (SlotNo s)) | s <- [0..4]]
-  blockStateRef <- newIORef input'
-  putStrLn "blockState [0]:"
-  () <- do
-        raw0 <- readIORef blockStateRef
-        mapM_ print $ reverse $ sortOn (bl_slot . snd) $ Map.toList raw0
-  overflowList <- atomicModifyIORef'
-                    blockStateRef
-                    (splitMapOn 4 bl_slot)
-  putStrLn "overflow:"
-  mapM_ print overflowList
-
-  raw <- readIORef blockStateRef
-  let raw' = reverse $ sortOn (bl_slot . snd)  $ Map.toList raw
-
-  -- Debugging:
-  putStrLn "blockState:"
-  mapM_ print raw'
-  putStrLn ""
-  
-test0 = myPr $ splitMapOn 2 bl_slot input0
-input0 = Map.fromList $ [(s, defaultBlockData 0 s) | s <- [0..4]]
-
-test2  = myPr $ splitMapOn 2 bl_slot input2
-input2 = Map.fromList $
-          [(5-s, defaultBlockData 0 (SlotNo s)) | s <- [0..4]]
-
-myPr (m,xs) = do
-              putStrLn "keep:"
-              mapM_ print $ Map.toList m
-              putStrLn "extra:"
-              mapM_ print $ xs
-              
