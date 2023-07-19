@@ -72,10 +72,8 @@ mkCnsaSinkAnalyses traceDP debugTr =
              
              CT.traceWith debugTr ("recvd traceLogObj: " ++ show trObj) 
              case getLogBody trObj of
-               Left s -> putStrLn $ unlines
-                           [ "Warn: unparseable TraceObject:"
-                           , "  " ++ s
-                           ]
+               Left s -> warn
+                           [ "unparseable TraceObject:", s]
                Right lb ->
                    do
                    CT.traceWith debugTr ("parsed log body: " ++ show lb)
@@ -117,7 +115,7 @@ data BlockData =
 rawBlockDataMax :: Int
 rawBlockDataMax = 5
   -- FIXME: update to 10 ?
-  -- FIXME: turn into CL parameter?
+  -- FIXME: turn into CL parameter.
 
 mkBlockStatusAnalysis
   :: Trace IO DataPoint
@@ -140,29 +138,39 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
       let time = Log.toTimestamp trObj
           withPeer f =
               case getPeerFromTraceObject trObj of
-                Left s  -> putStrLn $
-                             "warning: expected peer, ignoring trace: " ++ s
+                Left s  -> warn ["expected peer, ignoring trace: " ++ s]
                               
                 Right p -> f p
           host = Log.toHostname trObj
-          updBD = modifyIORef' rawBlockData
-
+          updateBlockData f = modifyIORef' rawBlockData f
+          updateBlockDataByKey k f =
+            modifyIORefMaybe rawBlockData
+              (\m-> case adjustIfMember f k m of
+                      Just m' -> return (Just m')
+                      Nothing ->
+                        do
+                        warn 
+                          ["ignoring Log, hash not in current block data: "
+                           ++ show k]
+                        return Nothing
+              )         
+          
       -- Update 'rawBlockData :: IORef BlockState' :
       case logObj of 
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
-              updBD (addSeenHeader slotno blockno hash peer time)
+              updateBlockData (addSeenHeader slotno blockno hash peer time)
 
         LO.LOBlockFetchClientRequested hash len ->
             withPeer $ \peer->
-              updBD (addFetchRequest hash len peer time)
+              updateBlockData (addFetchRequest hash len peer time)
     
         LO.LOBlockFetchClientCompletedFetch hash ->
             withPeer $ \peer->
-              updBD (addFetchCompleted hash peer time)
+              updateBlockDataByKey hash (addFetchCompleted hash peer time)
 
         LO.LOBlockAddedToCurrentChain hash msize len ->
-            updBD (addAddedToCurrent hash msize len host time)
+            updateBlockData (addAddedToCurrent hash msize len host time)
 
         _ ->
             return ()
@@ -256,11 +264,19 @@ addSeenHeader slot block hash peer time =
     hash
     (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
 
-addFetchRequest _hash _len _peer _time = id
+addFetchRequest _hash _len peer time m = m
+  {-
+  ---
+  Warn if not in map.
+  Map.insertWith
+    (\_ o->o{bl_sendFetchRequest= bl_sendFetchRequest o ++ [(peer,time)]})
+    hash
+    (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
+  -}
+  
+addFetchCompleted _hash _peer _time m = m
 
-addFetchCompleted _hash _peer _time = id
-
-addAddedToCurrent _hash _msize _len _host _time = id
+addAddedToCurrent _hash _msize _len _host _time m = m
 
 
 ---- Map utilities -------------------------------------------------
@@ -274,6 +290,32 @@ splitMapOn n f m0 = (Map.fromList keepers, overflow)
   where
   (keepers,overflow) = splitAt n $ reverse $ sortOn (f . snd) $ Map.toList m0
 
+adjustIfMember :: Ord k => (a -> a) -> k -> Map k a -> Maybe (Map k a)
+adjustIfMember f k m =
+  if k `Map.member` m then
+    Just $ Map.adjust f k m
+  else
+    Nothing
+  -- not seeing how to do with single call.
+
+
+---- IORef utilities -------------------------------------------------
+
+modifyIORefMaybe :: IORef a -> (a -> IO (Maybe a)) -> IO ()
+modifyIORefMaybe ref f =
+  do
+  a <- readIORef ref
+  ma <- f a
+  case ma of
+    Just a' -> writeIORef ref a'
+    Nothing -> return ()
+
+---- Etc utilities -------------------------------------------------
+
+-- FIXME: make more configurable/?
+warn :: [String] -> IO ()
+warn []     = return ()
+warn (s:ss) = mapM_ putStrLn $ ("Warning: "++s) : map ("  "++) ss
 
 ---- Testing -------------------------------------------------------
 
