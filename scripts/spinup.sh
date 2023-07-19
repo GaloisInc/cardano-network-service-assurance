@@ -280,6 +280,11 @@ ssh $SINK_HOST
     demo-acceptor Initiator \
       -s /tmp/cnsa-sink.sock \
       -p 2 BlockFetch.LastCompletedTimes
+
+    # verify serving the DP: [my new demo-acceptor, newest DP]
+    demo-acceptor Initiator \
+      -s /tmp/cnsa-sink.sock \
+      -p 2 CNSA.BlockState
     
 ##### Test : Q. Are metrics being reforwarded? A. No. ######################
       

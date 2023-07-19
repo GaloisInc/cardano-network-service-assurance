@@ -14,24 +14,31 @@ where
 
 -- base:
 import           Control.Monad
+import           Data.Functor.Contravariant
 import           Data.IORef
 import           Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict(Map)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
+import           GHC.Generics
 import           Network.HostName (HostName)
 
 -- package contra-tracer: (not to be confused with Cardano.Tracer....)
-import qualified "contra-tracer" Control.Tracer as CT
+import qualified "contra-tracer" Control.Tracer as OrigCT
+
+-- package aeson:
+import           Data.Aeson
 
 -- package cardano-strict-containers:
 import           Data.Maybe.Strict
 
 -- cardano packages:
+import           Cardano.Logging.Trace
+import           Cardano.Logging.Tracer.DataPoint
 import qualified Cardano.Logging.Types as Log
 import           Cardano.Slotting.Block
 import           Cardano.Slotting.Slot
-import           Cardano.Tracer.MetaTrace hiding (traceWith)
+import           Cardano.Tracer.MetaTrace -- hiding (traceWith)
 import           Trace.Forward.Utils.DataPoint
 
 -- package locli: (or slice thereof)
@@ -55,7 +62,7 @@ import           Cardano.Utils.SlotTimes
 --
 
 mkCnsaSinkAnalyses :: Trace IO DataPoint
-                   -> CT.Tracer IO String
+                   -> OrigCT.Tracer IO String
                    -> IO (Log.TraceObject -> IO (), IO ())
 mkCnsaSinkAnalyses traceDP debugTr =
   do
@@ -71,13 +78,13 @@ mkCnsaSinkAnalyses traceDP debugTr =
              do
              PC.inc metric_traceCtr
              
-             CT.traceWith debugTr ("recvd traceLogObj: " ++ show trObj) 
+             OrigCT.traceWith debugTr ("recvd traceLogObj: " ++ show trObj) 
              case getLogBody trObj of
                Left s -> warnMsg
                            [ "unparseable TraceObject:", s]
                Right lb ->
                    do
-                   CT.traceWith debugTr ("parsed log body: " ++ show lb)
+                   OrigCT.traceWith debugTr ("parsed log body: " ++ show lb)
                    case lb of
                      LB_LOBody l -> sendTraceLogObj trObj l
                      LB_Etc    _ -> return ()
@@ -111,7 +118,7 @@ data BlockData =
             , bl_addedToCurrentChain :: Maybe UTCTime
             , bl_size                :: Maybe Int
             }
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Generic)
 
 blockStateMax :: Int
 blockStateMax = 5
@@ -119,10 +126,10 @@ blockStateMax = 5
   
 mkBlockStatusAnalysis
   :: Trace IO DataPoint
-  -> CT.Tracer IO String
+  -> OrigCT.Tracer IO String
   -> PR.Registry
   -> IO (Log.TraceObject -> LO.LOBody -> IO ())
-mkBlockStatusAnalysis _traceDP debugTr registry =
+mkBlockStatusAnalysis traceDP debugTr registry =
   do
   blockStateRef   <- newIORef (Map.empty :: BlockState)
   topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
@@ -130,6 +137,13 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
   propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
                        [0.1,0.2..2.0]
                        registry
+                       
+  -- Update BlockState datapoint:
+  trBlockState' :: Trace IO BlockState'
+    <- mkDataPointTracer traceDP
+
+  let trBlockState :: Trace IO BlockState
+      trBlockState = contramap BlockState' trBlockState'
 
   let
     doLogEvent :: Log.TraceObject -> LO.LOBody -> IO ()
@@ -185,9 +199,9 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
 
           debugTraceBlockData nm es =
             do
-            CT.traceWith debugTr (nm ++ " block data:")
-            mapM_ (CT.traceWith debugTr . show) es
-            CT.traceWith debugTr ""
+            OrigCT.traceWith debugTr (nm ++ " block data:")
+            mapM_ (OrigCT.traceWith debugTr . show) es
+            OrigCT.traceWith debugTr ""
             -- FIXME[F3]: make fancier
             
       -- debugTracing:
@@ -200,9 +214,12 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
                         blockStateRef
                         (splitMapOn blockStateMax bl_slot)
 
+      -- update Datapoint
+      readIORef blockStateRef >>= traceWith trBlockState
+      
       -- Process 'overflowList': (print to stdout for now) [FIXME]
       if null overflowList then
-        CT.traceWith debugTr ("Overflow: none")
+        OrigCT.traceWith debugTr ("Overflow: none")
       else
         mapM_ (\b-> putStrLn ("Overflow: " ++ show b))
               overflowList
@@ -230,9 +247,9 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
                           (\(p,t)->
                              (p, diffUTCTime t (slotStart (SlotNo slot1))))
                           (bl_downloadedHeader b1)
-            CT.traceWith debugTr $ unwords ["slot_top:", show slot0]
-            CT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
-            CT.traceWith debugTr $ unwords ["delays:"  , show delays]
+            OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
+            OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
+            OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
             when (any (\(_,d)-> d < 0) delays) $
               errorMsg ["Negative Delay"]
             mapM_ (\v-> PH.observe v propDelaysHist)
@@ -241,7 +258,7 @@ mkBlockStatusAnalysis _traceDP debugTr registry =
         -- unless we have at least two blocks recorded, do nothing:
         _ ->
             return ()
-              
+
   return doLogEvent
 
 defaultBlockData :: BlockNo -> SlotNo -> BlockData
@@ -260,8 +277,7 @@ addSeenHeader :: SlotNo
               -> Hash
               -> Peer
               -> UTCTime
-              -> Map Hash BlockData
-              -> Map Hash BlockData
+              -> BlockState -> BlockState
 addSeenHeader slot block hash peer time =
   Map.insertWith
     (\_ o->o{bl_downloadedHeader= bl_downloadedHeader o ++ [(peer,time)]})
@@ -269,7 +285,10 @@ addSeenHeader slot block hash peer time =
     (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
 
 addFetchRequest :: Hash
-                   -> Int -> Peer -> UTCTime -> BlockData -> BlockData
+                -> Int
+                -> Peer
+                -> UTCTime
+                -> BlockData -> BlockData
 addFetchRequest _hash _len peer time d =
   d{bl_sendFetchRequest= (peer,time) : bl_sendFetchRequest d}
   -- what is _len?
@@ -292,6 +311,23 @@ addAddedToCurrent _hash msize _len _host time d =
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
   
 
+---- Boilerplate for BlockState' Datapoint -------------------------
+
+newtype BlockState' = BlockState' BlockState
+                      deriving (Eq,Ord,Show,Generic)
+
+deriving instance ToJSON BlockState'
+
+deriving instance ToJSON BlockData
+
+instance Log.MetaTrace BlockState'
+  where
+  namespaceFor _  = Log.Namespace [] ["CNSA","BlockState"]
+  severityFor _ _ = Just Info
+  documentFor _   = Just "Map, by hash, containing block and propagation info"
+  allNamespaces   = [Log.namespaceFor (undefined :: BlockState')]
+
+  
 ---- Map utilities -------------------------------------------------
 
 -- | splitMapOn n f m -
