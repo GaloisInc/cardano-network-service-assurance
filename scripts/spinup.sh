@@ -5,7 +5,7 @@
 source ./variables.sh
 
 # or, to run the above from anywhere:
-source ~/src/iog/cnsa/systems/current/scripts/variables.sh
+source ~/src/iog/cardano-network-service-assurance/scripts/variables.sh
    # reminder: the above file up to date?
 
 
@@ -18,10 +18,9 @@ ALLMYNODES="${SA1_HOST} ${SA2_HOST}"
 ALLMYNODES=${SINK_HOST}
 ALLMYNODES=${SA1_HOST}
 ALLMYNODES="${SA1_HOST} ${SA2_HOST} ${SINK_HOST} ${BUILD_HOST}"
-SYSVER=v1.0
 for host in ${ALLMYNODES}; do
   echo host : $host
-  rsync -plv ${CNSA}/systems/${SYSVER}/config/* $host:${NODE_CFG_RELDIR}/
+  rsync -plv ${CNSA}/config/* $host:${NODE_CFG_RELDIR}/
   echo
 done
 
@@ -215,7 +214,7 @@ ssh $SINK_HOST
   
       # OR
 
-##### Test analysis-server (V0): demo-acceptor##############################
+##### Test analysis-server (V0): demo-acceptor #############################
 
   source ~/src/iog/cnsa/systems/v0.8/scripts/variables.sh
 

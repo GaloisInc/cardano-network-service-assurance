@@ -45,7 +45,7 @@ fi
 
 # your repo location
 
-CNSA=~/src/iog/cnsa  
+CNSA=~/src/iog/cardano-network-service-assurance
 
 #### More details of the system v-0.5 implementation #########################
 

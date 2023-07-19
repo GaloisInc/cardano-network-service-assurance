@@ -112,8 +112,8 @@ TraceOptions:
     
 # Frequency limited tracers
 #   - the following all have 'default limits of 2.0 built into the config
-#     parsing code in the code!  Thus absence implies the default!!
-#   - note that 0 signifies no limits.
+#     parsing code: Thus absence implies the default!
+#   - note that 0 signifies no limit.
 
   BlockFetch.Client.CompletedBlockFetch:
     maxFrequency: 0
