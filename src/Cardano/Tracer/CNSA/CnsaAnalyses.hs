@@ -138,12 +138,9 @@ mkBlockStatusAnalysis traceDP debugTr registry =
                        [0.1,0.2..2.0]
                        registry
                        
-  -- Update BlockState datapoint:
-  trBlockState' :: Trace IO BlockState'
-    <- mkDataPointTracer traceDP
-
-  let trBlockState :: Trace IO BlockState
-      trBlockState = contramap BlockState' trBlockState'
+  -- Create BlockState tracer:
+  trBlockState :: Trace IO BlockState
+    <- contramap BlockState' <$> mkDataPointTracer traceDP
 
   let
     doLogEvent :: Log.TraceObject -> LO.LOBody -> IO ()
@@ -214,10 +211,10 @@ mkBlockStatusAnalysis traceDP debugTr registry =
                         blockStateRef
                         (splitMapOn blockStateMax bl_slot)
 
-      -- update Datapoint
+      -- update blockState Datapoint:
       readIORef blockStateRef >>= traceWith trBlockState
       
-      -- Process 'overflowList': (print to stdout for now) [FIXME]
+      -- Process 'overflowList': (print to stdout for now, later...?)
       if null overflowList then
         OrigCT.traceWith debugTr ("Overflow: none")
       else
