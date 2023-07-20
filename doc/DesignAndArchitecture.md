@@ -85,7 +85,10 @@ The high level architecture of a CNSA instance comprises the following:
     datatypes over socket)
   - Prometheus  (for “scalar” network metrics)
 
+
 Refer to [Architecture: CNSA Deployed](architecture-deployed.svg).
+
+Refer to ![Alt](architecture-deployed.svg).
 
 ## Design of Sink and Sampling Hosts
 
