@@ -32,8 +32,8 @@ fi
 
 ##### variables used to configure the $SINK_HOST ###########################
 
-SA1_REMOTE_TRACER_SOCK=/tmp/trace-forward-sa1.sock
-SA2_REMOTE_TRACER_SOCK=/tmp/trace-forward-sa2.sock
+SA1_REMOTE_TRACER_SOCK=/tmp/cnsa-trace-forward-sa1.sock
+SA2_REMOTE_TRACER_SOCK=/tmp/cnsa-trace-forward-sa2.sock
 
 # The socket where cnsa-sink serves the tracing protocol, currently
 # only datapoints are being served here:

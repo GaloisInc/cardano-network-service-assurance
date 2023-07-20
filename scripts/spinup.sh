@@ -4,21 +4,13 @@
 
 ##### Local ###########################################################
 
-# set this to this repo location:
+# set this to this repo location (parent directory)
 CNSA=~/src/iog/cardano-network-service-assurance
 
 BUILD_HOST=sapphire.proj.galois.com
 
-# set the variables:
+# set the CNSA variables:
 source ${CNSA}/scripts/variables.sh
-
-##### Local: idioms on Sampling Nodes #################################
- 
-# - to re-attach
- tmux attach -t cardano-node
-# - to capture panes
- tmux capture-pane -t cardano-node  -p -S - > ~/tmp/T-tmux-capture-node-C
-
 
 ##### COPY CONFIGURATIONS TO SAMPLING NODES ###########################
 
