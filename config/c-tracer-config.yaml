@@ -2,7 +2,7 @@
 networkMagic: 764824073
 network:
   tag: ConnectTo
-  contents: [ "/tmp/forwarder.sock" ]
+  contents: [ "/tmp/cardano-node-to-cardano-tracer.sock" ]
 loRequestNum: 100
 ekgRequestFreq: 2
 hasEKG:

@@ -80,36 +80,39 @@ The high level architecture of a CNSA instance comprises the following:
   centralized service (`cnsa-sink` running on the "sink node").
 - Centralized service---in real time---aggregates data, runs analyses
   on them, and serves the results via
-  - Logs
+  - Log files.
   - DataPoints (allows for Haskell programs to read arbitrary
-    datatypes over socket)
-  - Prometheus  (for “scalar” network metrics)
+    datatypes over socket).
+  - Prometheus  (for “scalar” network metrics).
 
-
-Refer to [Architecture: CNSA Deployed](architecture-deployed.svg).
-
-Refer to ![Alt](architecture-deployed.svg).
+As is seen here:
+![Alt](architecture-deployed.svg)
 
 ## Design of Sink and Sampling Hosts
 
-Refer to [Architecture: Sink Host, Sampling Host](architecture-hosts.svg)
-for a diagrammatic overview of the sink host and the sampling hosts. 
+Here is a diagrammatic overview of the sink host and the sampling hosts:
+![Alt](architecture-hosts.svg).
 
-### New Tracing 
+### New Tracing Introduced
 
 Splits cardano-node into two processes
 cardano-node (core functionality;  serves tracing protocol)
-cardano-tracer (logging, logfile management, EKG, etc.)
+cardano-tracer (logging, logfile management, EKG, etc.).
+
+The general idea and architecture of cardano-tracer is described here:
+https://github.com/input-output-hk/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md
+
 Tracing Protocol
 1. Logging Messages
 2. Forwarding of EKG store (scalar values)
 3. DataPoints (newest of these protocols)
 
-### Reforwarding
+### Extending cardano-tracer with Reforwarding
 
-### Etc
+<TODO>
 
-Note the following
+### Further Details
 
-- A.
-- B.
+Note the following <TODO>
+
+For yet further details, refer to [Spinning Up and Using CNSA](RunningCNSA.md)

@@ -2,7 +2,7 @@
 networkMagic: 764824073
 network:
   tag: ConnectTo
-  contents: [ "/tmp/forwarder.sock" ]
+  contents: [ "/tmp/cardano-node-to-cardano-tracer.sock" ]
 loRequestNum: 100
 ekgRequestFreq: 2
 hasEKG:
@@ -19,11 +19,11 @@ hasRTView:
 hasForwarding:
   - network:
     tag: AcceptAt
-    contents: "/tmp/reforwarder.sock"
+    contents: "/tmp/cardano-tracer-reforwarding.sock"
   - [["BlockFetch","Client"],
      ["ChainSync","Client"],
      ["ChainDB","AddBlockEvent"]
-]
+    ]
   - {}
 logging:
 - logRoot: "/tmp/cardano-tracer-h-logs"
