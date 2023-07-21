@@ -141,7 +141,7 @@ Second, start `cnsa-sink`
 
 You'll see a pretty noisy `stdout` which includes debugging information
 and various warnings.  More "info level" logging messages are prefixed
-with "Overflow:", see /The `CNSA.BlockState` Datapoint and Log/ below.
+with "Overflow:", see *The `CNSA.BlockState` Datapoint and Log* below.
 
 ## Exercising the `cnsa-sink` service
 ### Storage of filtered, forwarded logs
@@ -161,7 +161,7 @@ We can verify that `cnsa-sink` is serving the `CNSA.BlockState` Datapoint
       -p 2 \
       CNSA.BlockState
 
-`demo-acceptor` polls the *new tracing protocol* on `$SINKSERVER_SOCK`
+`demo-acceptor` polls the *New Tracing Protocol* on `$SINKSERVER_SOCK`
 every 2 seconds, requests the `CNSA.BlockState` Datapoint, and prints
 the result as JSON.
 
@@ -170,7 +170,8 @@ TODO: CAVEAT: [this is the custom/updated demo-acceptor].
 ### The `CNSA.BlockState` Datapoint and Log
 
 Currently CNSA supports one Datapoint, `CNSA.BlockState`, its Haskell
-type is `BlockState`, from [](../src/Cardano/Tracer/CNSA/CnsaAnalyses.hs):
+type is `BlockState` defined in [the source
+code](../src/Cardano/Tracer/CNSA/CnsaAnalyses.hs) as follows:
 
     type BlockState = Map Hash BlockData
     data BlockData =
@@ -184,7 +185,7 @@ type is `BlockState`, from [](../src/Cardano/Tracer/CNSA/CnsaAnalyses.hs):
                 }
 
 As currently configured, the `Map` holds the five most recent blocks
-(as defined by `SlotNo`), this data can be queried anytime via the 
+(as ordered by `SlotNo`), this data can be queried anytime via the 
 Datapoint protocol, as we show above.
 
 As BlockData is rotated out of the `Map` it is logged to `stdout` prefixed
@@ -192,13 +193,13 @@ with "Overflow:", e.g.,
 
     Overflow: (473f6b792214d4cafe06be1d2f0e14b5c4ab3eaa4dc1ef02de1628b89d3e116a,BlockData {bl_blockNo = BlockNo 9056351, bl_slot = SlotNo 98348687, bl_downloadedHeader = [("54.248.146.238:6000",2023-07-21 04:49:38.205928177 UTC),("34.83.231.227:6001",2023-07-21 04:49:38.339494503 UTC),("54.64.243.69:1338",2023-07-21 04:49:38.179543193 UTC),...], bl_sendFetchRequest = [("3.222.153.137:3001",2023-07-21 04:48:44.132977085 UTC),("3.216.77.109:3001",2023-07-21 04:48:44.128199831 UTC)], bl_completedBlockFetch = [("3.216.77.109:3001",2023-07-21 04:48:44.221206052 UTC),("3.222.153.137:3001",2023-07-21 04:48:44.230211113 UTC)], bl_addedToCurrentChain = Just 2023-07-21 04:48:44.314005457 UTC, bl_size = Nothing})
 
-Thus, the following invocation of cnsa-sink would allow us to capture
+Thus, the following invocation of `cnsa-sink` allows us to capture
 all `BlockData` as it is rotated out of the `BlockState` map:
 
     cnsa-sink $SA1_REMOTE_TRACER_SOCK $SA2_REMOTE_TRACER_SOCK \
       | tee >(grep "^Overflow:" > ~/overflow-blockdata.log)
 
-Future work
+Future work:
 
 > Add a more powerful and structured logging system, in particular as
 > we add further types of log messages.

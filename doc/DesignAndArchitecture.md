@@ -3,8 +3,8 @@
 
 First some terminology we use here:
 
-- Consolidation server (or sink node): the host, or service, to which
-  all data is sent.  (We will also use the term "sink node", as the
+- Consolidation server (or sink host): the host, or service, to which
+  all data is sent.  (We will also use the term "sink host", as the
   terms client and server in this context can be confusing: e.g.,
   cardano-node is the "server" for log data.)
 - CNSA instance: A set of running sampling nodes that are
@@ -78,7 +78,7 @@ The high level architecture of a CNSA instance comprises the following:
   `N` ≈ 10)
 - Each sampling node would be connected to `V` peers (e.g., `V` ≈ 100)
 - Sampling nodes process and send a subset of the data to a
-  centralized service (`cnsa-sink` running on the "sink node").
+  centralized service (`cnsa-sink` running on the "sink host").
 - Centralized service---in real time---aggregates data, runs analyses
   on them, and serves the results via
   - Log files.
@@ -98,12 +98,12 @@ overview of the sink host and the sampling hosts:
 Key features here are
 - `cardano-node` currently requires no source code changes
 - `cardano-tracer` offloads logging and other services from
-  `cardano-node` (see below re /New Tracing Introduced/).
-- These last communicate through a /Tracing Protocol/ on a Unix
+  `cardano-node` (see below re *New Tracing Introduced*).
+- These last communicate through the *New Tracing Protocol* on a Unix
   socket.
 - `cardano-tracer` is extended with configurable "reforwarding tracer"
-  in order to **itself** serve (i.e., "reforward") the /Tracing
-  Protocol/ while filtering log messages.  These changes have been 
+  in order to **itself** serve (i.e., "reforward") the *New Tracing
+  Protocol* while filtering log messages.  These changes have been 
   made to master branch of https://github.com/input-output-hk/cardano-node.
 - `cnsa-sink` is implemented simply and elegantly by using
   `cardano-tracer` as a library and is the only location in the
@@ -112,7 +112,7 @@ Key features here are
 
 ### New Tracing Introduced
 
-/New Tracing/ splits `cardano-node` into two processes `cardano-node`
+*New Tracing* splits `cardano-node` into two processes `cardano-node`
 (core functionality; serves tracing protocol) and `cardano-tracer`
 (logging, logfile management, EKG, etc.).
 
@@ -120,7 +120,7 @@ The general idea and architecture of "new tracing" and
 `cardano-tracer` is described here:
 https://github.com/input-output-hk/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md.
 
-The /Tracing Protocol/ consists of three mini-protocols:
+The *New Tracing Protocol* consists of three mini-protocols:
 1. Logging Messages
 2. Forwarding of EKG store (scalar values)
 3. DataPoints (newest of the mini-protocols)
