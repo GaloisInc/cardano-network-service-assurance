@@ -55,10 +55,4 @@ If you have an environment where you have built (or can build)
     cabal build exe:cnsa-sink
     cabal build exe:demo-acceptor
 
-This last is not essential, but we use it to test access to Datapoints.
-
-## Other Tooling 
-
-The following is a tool ... TODO
- - `demo-acceptor`
- 
+This last is not essential, but we use it to test that we can access Datapoints.
