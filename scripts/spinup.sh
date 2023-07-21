@@ -32,24 +32,18 @@ done
 # for each of SA1 and SA2:
 
 ssh $SA1_HOST
+ source $CNSA/scripts/variables.sh  # or from ...
 
  tmux new -s cardano-tracer
 
-  # configured to be reforwarding:
   cardano-tracer --config $NODE_CFG_DIR/c-tracer-config-reforwarding.yaml
-    # starting first: yes, works great.
-    # Is perfectly robust wrt starting and stopping cardano-node
 
   # Did you want to just use new-tracing and not do CNSA:
     cardano-tracer --config $NODE_CFG_DIR/c-tracer-config.yaml
  
  tmux new -s cardano-node
 
-  MYIP=$SA1_IPADDR  #
-  cd $NODE_CFG_DIR
-    # (this a little irritating: but the logfile name in config.json is 'relative'
-    # HUH?
-    # ALSO: p2p!
+  MYIP=$SA1_IPADDR  # adjusting for each sampling node
   
   cardano-node run \
    --config $NODE_CFG_DIR/config-p2p.yaml \
@@ -57,19 +51,19 @@ ssh $SA1_HOST
    --socket-path $CARDANO_NODE_SOCKET_PATH \
    --host-addr $MYIP \
    --port 1337 \
-   --topology $NODE_CFG_DIR/topology.json \
+   --topology $NODE_CFG_DIR/topology-p2p.json \
    --tracer-socket-path-accept $TRACER_SOCK
+
       # now cardano-tracer can connect!
 
 ##### SETUP THE SINK NODE ############################################
 
 ssh $SINK_HOST
+ source $CNSA/scripts/variables.sh  # or from ...
  
  # forEach SamplingNode: forward the ports (from SA* to local sockets)
  tmux new -s port-forwarding
  
-  source $CNSA/scripts/variables.sh
-
   [ -e $SA1_REMOTE_TRACER_SOCK ] && remove $SA1_REMOTE_TRACER_SOCK
   [ -e $SA2_REMOTE_TRACER_SOCK ] && remove $SA2_REMOTE_TRACER_SOCK
 
@@ -84,21 +78,22 @@ ssh $SINK_HOST
 ##### Test cnsa-sink ################################################
 
 ssh $SINK_HOST
+ source $CNSA/scripts/variables.sh  # or from ...
 
- tmux attach -t sink
+ tmux new -s sink
 
-  source $CNSA/scripts/variables.sh
   cnsa-sink $SA1_REMOTE_TRACER_SOCK $SA2_REMOTE_TRACER_SOCK
 
-  # verify your reforwarded logs are being filtered and stored:
-  tail -f /tmp/cnsa-sink-m-logs/tmp-trace-forward-sa1sock/*json
-  tail -f /tmp/cnsa-sink-m-logs/tmp-trace-forward-sa2sock/*json
+  # verify your reforwarded logs here have been filtered:
+  tail -f /tmp/cnsa-sink-m-logs/tmp-cnsa-trace-forward-sa1sock/*.json
+  tail -f /tmp/cnsa-sink-m-logs/tmp-cnsa-trace-forward-sa2sock/*.json
 
-  # verify cnsa-sink is serving the Datapoint:
+ tmux new -s demo
+  
   #  CAVEAT: [updated demo-acceptor, newest Datapoint]
-  demo-acceptor Initiator \
-    -s $SINKSERVER_SOCK \
-    -p 2 CNSA.BlockState
+    demo-acceptor Initiator \
+      -s $SINKSERVER_SOCK \
+      -p 2 CNSA.BlockState
     
 # TODO: rename demo-acceptor to _! (or change to old syntax)
 
