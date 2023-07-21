@@ -2,29 +2,29 @@
 ## Our Instantiation
 
 Our *demonstration* instantiation of CNSA includes
-  - two sampling nodes `$SA1_HOST` `$SA2_HOST`, each of these will be
+  - Two sampling nodes `$SA1_HOST` `$SA2_HOST`, each of these will be
     running
      - `cardano-node` configured with new-tracing.
-     - `cardano-tracer` configured to reforward the tracing mini-protocols.
+     - `cardano-tracer` configured to re-forward the tracing mini-protocols.
     
-  - a sink node `$SINK_HOST` running `cnsa-sink`.
+  - One sink node `$SINK_HOST` running `cnsa-sink`.
 
 The required configuration files can be found in 
 [the configuration directory](../config/).
-
-Beyond those, we capture shared system information in
+Beyond the configuration files, we capture shared system information in
 [variables.sh](../scripts/variables.sh):
-- You will need to update and extend this for your needs; you will
-  need to change the `*_HOST` variables, but you should be able to leave
-  the `*_SOCK` variables alone.
-- You'll need to `source` this on all your nodes.
+- You will need to update and extend this for your needs.  In
+  particular you will need to change the `*_HOST` variables, but you
+  should be able to leave the `*_SOCK` variables alone. Note the
+  documentation in the shell file.
+- You'll need to `source` this file on all your nodes.
 
 This configuration will give two sampling nodes, each with 20 hot
 peers, running in P2P mode.
 
 ## Extra installs
 
-Port forwarding is part of the design: continuuing to follow the
+Port forwarding is part of the CNSA design: continuing to follow the
 "principle of least privilege" as is currently reflected in the
 new-tracing system of cardano-node.
 It is highly recommended to use `autossh` for port forwarding
@@ -78,7 +78,7 @@ Start `cardano-node`:
        --topology $NODE_CFG_DIR/topology-p2p.json \
        --tracer-socket-path-accept $TRACER_SOCK
 
-And start `cardano-tracer`, configured with "reforwarding":
+And start `cardano-tracer`, configured with "re-forwarding":
 
      tmux new -s cardano-tracer
 
@@ -94,7 +94,7 @@ A couple things to note regarding `config/c-tracer-config-reforwarding.yaml`
         TRACER_SOCK=/tmp/cardano-node-to-cardano-tracer.sock
         REFWD_SOCK=/tmp/cardano-tracer-reforwarding.sock
 
-- Note the configuration of "reforwarding"
+- Note the configuration of "re-forwarding"
    ```yaml
    hasForwarding:
      - network:
@@ -105,11 +105,11 @@ A couple things to note regarding `config/c-tracer-config-reforwarding.yaml`
         ["ChainDB","AddBlockEvent"]
        ]
    ```
-   This will enable the "reforwarding" which serves the tracing
-   protocol on the unix socket `/tmp/reforwarder.sock` and only 
-   reforwards log messages (having a hierarchical namespace) that
+   This will enable the "re-forwarding" which serves the tracing
+   protocol on the Unix socket `/tmp/reforwarder.sock` and only 
+   re-forwards log messages (having a hierarchical namespace) that
    have one of the indicated prefixes.  Currently the three prefixes
-   are sufficient to compute CNSAs current "analyses" (see below).
+   are sufficient to compute CNSA's current "analyses" (see below).
    
 ### Sink Node (`cnsa-sink`)
 
@@ -131,7 +131,7 @@ First, forward ports from all your sampling nodes to the sink host:
        -L $SA2_REMOTE_TRACER_SOCK:$REFWD_SOCK $SA2_HOST &
 
 Note that we are connecting *not* to the `cardano-node` tracing socket, but to
-the new socket reforwarded by `cardano-tracer`.
+the new socket re-forwarded by `cardano-tracer`.
 
 Second, start `cnsa-sink`
 
@@ -153,7 +153,7 @@ stored on the sink node:
 
 ### Serving System Level Datapoints
 
-We can verify that `cnsa-sink` is serving the `CNSA.BlockState` datapoint
+We can verify that `cnsa-sink` is serving the `CNSA.BlockState` Datapoint
 
     tmux new -s demo
      demo-acceptor Initiator \
@@ -162,14 +162,14 @@ We can verify that `cnsa-sink` is serving the `CNSA.BlockState` datapoint
       CNSA.BlockState
 
 `demo-acceptor` polls the *new tracing protocol* on `$SINKSERVER_SOCK`
-every 2 seconds, requests the `CNSA.BlockState` datapoint, and prints
+every 2 seconds, requests the `CNSA.BlockState` Datapoint, and prints
 the result as JSON.
 
 TODO: CAVEAT: [this is the custom/updated demo-acceptor].
 
 ### The `CNSA.BlockState` Datapoint and Log
 
-Currently CNSA supports one datapoint, `CNSA.BlockState`, its Haskell
+Currently CNSA supports one Datapoint, `CNSA.BlockState`, its Haskell
 type is `BlockState`, from [](../src/Cardano/Tracer/CNSA/CnsaAnalyses.hs):
 
     type BlockState = Map Hash BlockData
@@ -192,8 +192,8 @@ with "Overflow:", e.g.,
 
     Overflow: (473f6b792214d4cafe06be1d2f0e14b5c4ab3eaa4dc1ef02de1628b89d3e116a,BlockData {bl_blockNo = BlockNo 9056351, bl_slot = SlotNo 98348687, bl_downloadedHeader = [("54.248.146.238:6000",2023-07-21 04:49:38.205928177 UTC),("34.83.231.227:6001",2023-07-21 04:49:38.339494503 UTC),("54.64.243.69:1338",2023-07-21 04:49:38.179543193 UTC),...], bl_sendFetchRequest = [("3.222.153.137:3001",2023-07-21 04:48:44.132977085 UTC),("3.216.77.109:3001",2023-07-21 04:48:44.128199831 UTC)], bl_completedBlockFetch = [("3.216.77.109:3001",2023-07-21 04:48:44.221206052 UTC),("3.222.153.137:3001",2023-07-21 04:48:44.230211113 UTC)], bl_addedToCurrentChain = Just 2023-07-21 04:48:44.314005457 UTC, bl_size = Nothing})
 
-Thus, this invocation of cnsa-sink would allow us to capture all `BlockData`
-as it is rotated out of the `BlockState` `Map`:
+Thus, the following invocation of cnsa-sink would allow us to capture
+all `BlockData` as it is rotated out of the `BlockState` map:
 
     cnsa-sink $SA1_REMOTE_TRACER_SOCK $SA2_REMOTE_TRACER_SOCK \
       | tee >(grep "^Overflow:" > ~/overflow-blockdata.log)
