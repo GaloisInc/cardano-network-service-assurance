@@ -84,9 +84,10 @@ And start `cardano-tracer`, configured with "re-forwarding":
 
       cardano-tracer --config $NODE_CFG_DIR/c-tracer-config-reforwarding.yaml
 
-Note that we're using configurations configured for P2P, this is not
-a requirement.
-A couple things to note regarding `config/c-tracer-config-reforwarding.yaml`
+Note that our configurations are setup for P2P, this is not a
+requirement.
+
+A couple notes regarding `config/c-tracer-config-reforwarding.yaml`:
 
 - The configuration data duplicates two variables in
   [variables.sh](../scripts/variables.sh): 
@@ -156,16 +157,12 @@ stored on the sink node:
 We can verify that `cnsa-sink` is serving the `CNSA.BlockState` Datapoint
 
     tmux new -s demo
-     demo-acceptor Initiator \
-      -s $SINKSERVER_SOCK \
-      -p 2 \
-      CNSA.BlockState
+    
+     demo-acceptor $SINKSERVER_SOCK Initiator CNSA.BlockState
 
-`demo-acceptor` polls the *New Tracing Protocol* on `$SINKSERVER_SOCK`
-every 2 seconds, requests the `CNSA.BlockState` Datapoint, and prints
+`demo-acceptor` polls the *New Tracing Protocol* on `$SINKSERVER_SOCK`,
+requests the `CNSA.BlockState` Datapoint, and prints
 the result as JSON.
-
-TODO: CAVEAT: [this is the custom/updated demo-acceptor].
 
 ### The `CNSA.BlockState` Datapoint and Log
 

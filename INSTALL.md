@@ -1,14 +1,12 @@
 # Installation
 
-See README.md for the big picture and how to spin up a CNSA instance.
-
 ## Executables
 
 The three executables needed for a CNSA instance are the following:
 
- - cardano-node    (we have tested with 8.1.1)
- - cardano-tracer
- - cnsa-sink
+ - `cardano-node`    (we have tested with 8.1.1)
+ - `cardano-tracer`
+ - `cnsa-sink`
 
 ## Building
 ### Preliminaries
@@ -43,18 +41,21 @@ build process, it will support "new tracing" and needs no
 modifications to work as a CNSA sampling node.
 
 You *should* build `exe:cardano-tracer` from this package. By doing
-so, you will ensure you get a version, which contains the
-"reforwarding tracer" extension.  (Note the comments in
+so, you will ensure you get a version that contains the required
+"re-forwarding tracer" extension.  (Note the comments in
 `cabal.project`.)
 
 ### Building CNSA executables
 
 If you have an environment where you have built (or can build)
-cardano-node, then you should be able to build CNSA executables thus:
+`cardano-node`, then you should be able to build CNSA executables thus:
 
     cabal update
     cabal build exe:cardano-tracer
     cabal build exe:cnsa-sink
+    cabal build exe:demo-acceptor
+
+This last is not essential, but we use it to test access to Datapoints.
 
 ## Other Tooling 
 

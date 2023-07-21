@@ -4,11 +4,11 @@ name:                   cnsa
 version:                0.0.9
 synopsis:               Tools for Cardano Network Service Assurance
 description:            A set of tools that allow for doing network service
-                        assurance of the cardano network using a set of
-                        "sampling" Cardano nodes.
+                        assurance of the Cardano network using a set of
+                        "sampling" nodes.
                         
 category:               Cardano,
-                        Trace,
+                        Trace
 copyright:              Galois, Inc.
 author:                 Galois
 maintainer:             tullsen@galois.com
@@ -31,48 +31,6 @@ common project-config
                         -Wpartial-fields
                         -Wredundant-constraints
                         -Wunused-packages
-
--- demo-acceptor lib and exe: are an extension of equivalent artifacts
--- in cardano-node.
-                            
-library demo-acceptor-lib
-  import:               project-config
-
-  hs-source-dirs:       test
-
-  other-modules:        Cardano.Tracer.Test.TestSetup
-                        Cardano.Tracer.Test.Utils
-
-  exposed-modules:      Cardano.Tracer.Test.Acceptor
-
-  build-depends:        async-extras
-                      , bytestring
-                      , cardano-tracer
-                      , containers
-                      , extra
-                      , filepath
-                      , generic-data
-                      , optparse-applicative-fork
-                      , ouroboros-network-api
-                      , stm
-                      , text
-                      , tasty-quickcheck
-                      , trace-forward
-
-executable demo-acceptor
-  import:               project-config
-
-  hs-source-dirs:       demo
-
-  main-is:              acceptor.hs
-
-  build-depends:        demo-acceptor-lib
-
-  ghc-options:          -threaded
-                        -rtsopts
-                        -with-rtsopts=-T
-  if os(windows)
-    buildable:          False
 
 library cnsa-sink-lib
   import:               project-config
@@ -194,5 +152,4 @@ library locli-slice
                         Cardano.Util
                         Data.CDF
                         Data.DataDomain
-                        Data.Profile                        
-        
+                        Data.Profile                     
