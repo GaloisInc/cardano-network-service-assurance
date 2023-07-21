@@ -9,7 +9,7 @@ Cardano nodes.
 - See the [Installation Instructions](INSTALL.md) for how to build the
   needed executables.
 
-- See the [Running CNSA](doc/RunningCNSA.md) for how to spin up an
+- See [Running CNSA](doc/RunningCNSA.md) for how to spin up an
   instantiation of CNSA inside the Cardano network.
 
 - Other documentation can be found in the [documentation directory](doc/).

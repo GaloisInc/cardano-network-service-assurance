@@ -74,8 +74,9 @@ Some design criteria currently informing the proposed architecture of CNSA are a
 ## High Level Architecture
 
 The high level architecture of a CNSA instance comprises the following:
-- Deploy N "sampling" nodes that sample data from the network (N ≈ 10 ?)
-- Each node would be connected to V peers (V ≈ 100 ?)
+- `N` deployed "sampling" nodes that sample data from the network (e.g.,
+  `N` ≈ 10)
+- Each sampling node would be connected to `V` peers (e.g., `V` ≈ 100)
 - Sampling nodes process and send a subset of the data to a
   centralized service (`cnsa-sink` running on the "sink node").
 - Centralized service---in real time---aggregates data, runs analyses
@@ -83,36 +84,51 @@ The high level architecture of a CNSA instance comprises the following:
   - Log files.
   - DataPoints (allows for Haskell programs to read arbitrary
     datatypes over socket).
-  - Prometheus  (for “scalar” network metrics).
+  - Prometheus metrics (for “scalar” network metrics).
 
-As is seen here:
+as we see in this diagram:
 ![Alt](architecture-deployed.svg)
 
 ## Design of Sink and Sampling Hosts
 
-Here is a diagrammatic overview of the sink host and the sampling hosts:
+To go into further detail of the hosts, here is a diagrammatic
+overview of the sink host and the sampling hosts:
 ![Alt](architecture-hosts.svg).
+
+Key features here are
+- `cardano-node` currently requires no source code changes
+- `cardano-tracer` offloads logging and other services from
+  `cardano-node` (see below re /New Tracing Introduced/).
+- These last communicate through a /Tracing Protocol/ on a Unix
+  socket.
+- `cardano-tracer` is extended with configurable "reforwarding tracer"
+  in order to **itself** serve (i.e., "reforward") the /Tracing
+  Protocol/ while filtering log messages.  These changes have been 
+  made to master branch of https://github.com/input-output-hk/cardano-node.
+- `cnsa-sink` is implemented simply and elegantly by using
+  `cardano-tracer` as a library and is the only location in the
+  codebase where merging of logs from multiple sampling nodes takes
+  place.
 
 ### New Tracing Introduced
 
-Splits cardano-node into two processes
-cardano-node (core functionality;  serves tracing protocol)
-cardano-tracer (logging, logfile management, EKG, etc.).
+/New Tracing/ splits `cardano-node` into two processes `cardano-node`
+(core functionality; serves tracing protocol) and `cardano-tracer`
+(logging, logfile management, EKG, etc.).
 
-The general idea and architecture of cardano-tracer is described here:
-https://github.com/input-output-hk/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md
+The general idea and architecture of "new tracing" and
+`cardano-tracer` is described here:
+https://github.com/input-output-hk/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md.
 
-Tracing Protocol
+The /Tracing Protocol/ consists of three mini-protocols:
 1. Logging Messages
 2. Forwarding of EKG store (scalar values)
-3. DataPoints (newest of these protocols)
-
-### Extending cardano-tracer with Reforwarding
-
-<TODO>
+3. DataPoints (newest of the mini-protocols)
+`cardano-node` serves/produces the data, while `cardano-tracer`
+consumes the data.  This new architecture allows offloading,
+from `cardano-node`, of the logging of traces, the display and serving
+of EKG data, etc.
 
 ### Further Details
-
-Note the following <TODO>
 
 For yet further details, refer to [Spinning Up and Using CNSA](RunningCNSA.md)

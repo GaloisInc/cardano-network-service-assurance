@@ -13,7 +13,7 @@ SINK_HOST=fjord.proj.galois.com
 ##### variables used to configure the sampling nodes #######################
 
 # The location(s) of the Unix domain socket on each sampling HOST:
-#   - N.B.: These must must match what is configured in
+#   - N.B.: These two must must match what is configured in
 #   config/c-tracer-config*.yaml 
 
 TRACER_SOCK=/tmp/cardano-node-to-cardano-tracer.sock
@@ -39,4 +39,4 @@ SA2_REMOTE_TRACER_SOCK=/tmp/cnsa-trace-forward-sa2.sock
 # only datapoints are being served here:
 
 SINKSERVER_SOCK=/tmp/cnsa-sink.sock
-  # don't change this as it is [currently] wired into cnsa-sink.
+  # don't change this: it is [currently] wired into cnsa-sink.

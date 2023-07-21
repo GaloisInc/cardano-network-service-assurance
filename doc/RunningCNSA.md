@@ -1,36 +1,39 @@
 # Spinning Up and Using Cardano Network Service Assurance (CNSA)
 ## Our Instantiation
 
-Our demonstration instantiation of CNSA includes
+Our *demonstration* instantiation of CNSA includes
   - two sampling nodes `$SA1_HOST` `$SA2_HOST`, each of these will be
     running
      - `cardano-node` configured with new-tracing.
-     - `cardano-tracer` configured to reforward.
+     - `cardano-tracer` configured to reforward the tracing mini-protocols.
     
-  - a sink node `$SINK_HOST` running
-    - `cnsa-sink`
+  - a sink node `$SINK_HOST` running `cnsa-sink`.
 
-The configurations needed can be found in 
+The required configuration files can be found in 
 [the configuration directory](../config/).
 
-Refer to [variables.sh](../scripts/variables.sh): you'll need to
-`source` this on all your nodes.  Update and extend this for your
-needs; you will need to change the `*_HOST` variables, but you should
-be able to leave the `*_SOCK` variables alone.
+Beyond those, we capture shared system information in
+[variables.sh](../scripts/variables.sh):
+- You will need to update and extend this for your needs; you will
+  need to change the `*_HOST` variables, but you should be able to leave
+  the `*_SOCK` variables alone.
+- You'll need to `source` this on all your nodes.
 
 This configuration will give two sampling nodes, each with 20 hot
 peers, running in P2P mode.
 
 ## Extra installs
 
-Install `autossh` on `$SINK_NODE`
+Port forwarding is part of the design: continuuing to follow the
+"principle of least privilege" as is currently reflected in the
+new-tracing system of cardano-node.
+It is highly recommended to use `autossh` for port forwarding
+(rather than plain `ssh`), it is a far more robust solution.
+Install `autossh` on `$SINK_NODE`:
 
     $ sudo apt install autossh
 
-It is highly recommended to use `autossh` for port forwarding
-(rather than plain `ssh`), it is a far more robust solution.
-
-In the following we use `tmux` for convenience.  For all your nodes,
+In the following we use `tmux` for convenience; install it with
 
     $ sudo apt install tmux
 
@@ -42,32 +45,26 @@ Every sampling node
 
 We use `rsync` to copy the config files from your local host to the
 sampling nodes:
-`
-    # your repo
-    CNSA=~/src/iog/cardano-network-service-assurance
+
+    CNSA=~/src/iog/cardano-network-service-assurance  # your repo
     source ${CNSA}/scripts/variables.sh
     ALLSAMPLINGHOSTS="${SA1_HOST} ${SA2_HOST}"
     for host in ${ALLSAMPLINGHOSTS}; do
-      echo host : $host
       rsync -plv ${CNSA}/config/* $host:${NODE_CFG_RELDIR}/
-      echo
     done
-`
 
-## Spinning Up
+## Spinning Up CNSA
 ### Sampling Nodes
 
 For each sampling node, you'll start `cardano-node` and
-`cardano-tracer`, the order doesn't matter and each process is
-resilient to the other process starting and stopping. Here's setting 
-up `$SA1_HOST`:
+`cardano-tracer`; the order doesn't matter and each process is
+resilient to the other process starting and stopping.  On your
+`$SA1_HOST` sampling node:
 
-    ssh $SA1_HOST
+     ssh $SA1_HOST
      source $CNSA/scripts/variables.sh  # or from ...
 
-     tmux new -s cardano-tracer
-
-      cardano-tracer --config $NODE_CFG_DIR/c-tracer-config-reforwarding.yaml
+Start `cardano-node`:
 
      tmux new -s cardano-node
 
@@ -81,24 +78,39 @@ up `$SA1_HOST`:
        --topology $NODE_CFG_DIR/topology-p2p.json \
        --tracer-socket-path-accept $TRACER_SOCK
 
+And start `cardano-tracer`, configured with "reforwarding":
+
+     tmux new -s cardano-tracer
+
+      cardano-tracer --config $NODE_CFG_DIR/c-tracer-config-reforwarding.yaml
+
 Note that we're using configurations configured for P2P, this is not
-absolutely necessary.
+a requirement.
+A couple things to note regarding `config/c-tracer-config-reforwarding.yaml`
 
-Caveat: a few dependencies between variables and configuration data.
-Regarding the ...
-Note `config/c-tracer-config-reforwarding.yaml`
+- The configuration data duplicates two variables in
+  [variables.sh](../scripts/variables.sh): 
 
-```yaml
-hasForwarding:
-  - network:
-    tag: AcceptAt
-    contents: "/tmp/reforwarder.sock"
-  - [["BlockFetch","Client"],
-     ["ChainSync","Client"],
-     ["ChainDB","AddBlockEvent"]
-    ]
-```
+        TRACER_SOCK=/tmp/cardano-node-to-cardano-tracer.sock
+        REFWD_SOCK=/tmp/cardano-tracer-reforwarding.sock
 
+- Note the configuration of "reforwarding"
+   ```yaml
+   hasForwarding:
+     - network:
+       tag: AcceptAt
+       contents: "/tmp/reforwarder.sock"
+     - [["BlockFetch","Client"],
+        ["ChainSync","Client"],
+        ["ChainDB","AddBlockEvent"]
+       ]
+   ```
+   This will enable the "reforwarding" which serves the tracing
+   protocol on the unix socket `/tmp/reforwarder.sock` and only 
+   reforwards log messages (having a hierarchical namespace) that
+   have one of the indicated prefixes.  Currently the three prefixes
+   are sufficient to compute CNSAs current "analyses" (see below).
+   
 ### Sink Node (`cnsa-sink`)
 
 The following is executed on the `$SINK_HOST`:
@@ -124,15 +136,17 @@ the new socket reforwarded by `cardano-tracer`.
 Second, start `cnsa-sink`
 
     tmux new -s sink
+    
      cnsa-sink $SA1_REMOTE_TRACER_SOCK $SA2_REMOTE_TRACER_SOCK
 
-You'll see a bit of output on `stdout`, including a lot of debugging
-information.  Currently, <TODO>
+You'll see a pretty noisy `stdout` which includes debugging information
+and various warnings.  More "info level" logging messages are prefixed
+with "Overflow:", see /The `CNSA.BlockState` Datapoint and Log/ below.
 
-## Testing the cnsa-sink service
+## Exercising the `cnsa-sink` service
 ### Storage of filtered, forwarded logs
 
-Note that the *filtered* logs from each sampling node is being 
+Note that the *filtered* log from each sampling node is being 
 stored on the sink node:
 
     ls -rlt /tmp/cnsa-sink-m-logs/tmp-cnsa-trace-forward-sa*sock/
@@ -151,7 +165,43 @@ We can verify that `cnsa-sink` is serving the `CNSA.BlockState` datapoint
 every 2 seconds, requests the `CNSA.BlockState` datapoint, and prints
 the result as JSON.
 
-CAVEAT: [the custom/updated demo-acceptor] (TODO).
+TODO: CAVEAT: [this is the custom/updated demo-acceptor].
+
+### The `CNSA.BlockState` Datapoint and Log
+
+Currently CNSA supports one datapoint, `CNSA.BlockState`, its Haskell
+type is `BlockState`, from [](../src/Cardano/Tracer/CNSA/CnsaAnalyses.hs):
+
+    type BlockState = Map Hash BlockData
+    data BlockData =
+      BlockData { bl_blockNo             :: BlockNo
+                , bl_slot                :: SlotNo
+                , bl_downloadedHeader    :: [(Peer,UTCTime)]
+                , bl_sendFetchRequest    :: [(Peer,UTCTime)]
+                , bl_completedBlockFetch :: [(Peer,UTCTime)]
+                , bl_addedToCurrentChain :: Maybe UTCTime
+                , bl_size                :: Maybe Int
+                }
+
+As currently configured, the `Map` holds the five most recent blocks
+(as defined by `SlotNo`), this data can be queried anytime via the 
+Datapoint protocol, as we show above.
+
+As BlockData is rotated out of the `Map` it is logged to `stdout` prefixed
+with "Overflow:", e.g.,
+
+    Overflow: (473f6b792214d4cafe06be1d2f0e14b5c4ab3eaa4dc1ef02de1628b89d3e116a,BlockData {bl_blockNo = BlockNo 9056351, bl_slot = SlotNo 98348687, bl_downloadedHeader = [("54.248.146.238:6000",2023-07-21 04:49:38.205928177 UTC),("34.83.231.227:6001",2023-07-21 04:49:38.339494503 UTC),("54.64.243.69:1338",2023-07-21 04:49:38.179543193 UTC),...], bl_sendFetchRequest = [("3.222.153.137:3001",2023-07-21 04:48:44.132977085 UTC),("3.216.77.109:3001",2023-07-21 04:48:44.128199831 UTC)], bl_completedBlockFetch = [("3.216.77.109:3001",2023-07-21 04:48:44.221206052 UTC),("3.222.153.137:3001",2023-07-21 04:48:44.230211113 UTC)], bl_addedToCurrentChain = Just 2023-07-21 04:48:44.314005457 UTC, bl_size = Nothing})
+
+Thus, this invocation of cnsa-sink would allow us to capture all `BlockData`
+as it is rotated out of the `BlockState` `Map`:
+
+    cnsa-sink $SA1_REMOTE_TRACER_SOCK $SA2_REMOTE_TRACER_SOCK \
+      | tee >(grep "^Overflow:" > ~/overflow-blockdata.log)
+
+Future work
+
+> Add a more powerful and structured logging system, in particular as
+> we add further types of log messages.
 
 ### Serving Prometheus Metrics
 
@@ -196,9 +246,10 @@ where
     log messages received from the sampling nodes; it's not too useful
     but can serve as a "proof of life."
   - `propDelays`, of type `histogram`, is recording for all peers, 
-    the time since slot start (delay) at which we become aware ... (TODO).
-  - `slot_top`, of type `gauge`, is the highest slot number for a block
-    that we have seen so far.
+    the time since slot start (delay) at which the sampling node
+    learns that a peer sees a new header.
+  - `slot_top`, of type `gauge`, is the highest slot number for the blocks
+    seen so far.
   - `slot_penultimate`, of type `gauge`, is the second highest slot number
-    for a block that we have seen so far.
+    for the blocks seen so far.
 
