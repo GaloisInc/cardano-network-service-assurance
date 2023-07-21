@@ -22,6 +22,7 @@ import           Data.Map.Strict(Map)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
 import           GHC.Generics
 import           Network.HostName (HostName)
+import           System.IO (hFlush, stdout)      
 
 -- package contra-tracer: (not to be confused with Cardano.Tracer....)
 import qualified "contra-tracer" Control.Tracer as OrigCT
@@ -214,12 +215,17 @@ mkBlockStatusAnalysis traceDP debugTr registry =
       -- update blockState Datapoint:
       readIORef blockStateRef >>= traceWith trBlockState
       
-      -- Process 'overflowList': (print to stdout for now, later...?)
+      -- Process 'overflowList': 
       if null overflowList then
         OrigCT.traceWith debugTr ("Overflow: none")
       else
+        -- (print to stdout for now, later...?)
+        -- FIXME: this is not ideal, esp. the hFlush!
+        do
+        hFlush stdout
         mapM_ (\b-> putStrLn ("Overflow: " ++ show b))
               overflowList
+        hFlush stdout
 
       -- Update Metrics:
       raw1 <- getSortedBySlots <$> readIORef blockStateRef
