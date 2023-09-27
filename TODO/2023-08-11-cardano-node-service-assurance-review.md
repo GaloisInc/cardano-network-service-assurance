@@ -101,11 +101,6 @@ data BlockData =
             }
 ```
 
-#### `addSeenHeader`
-
-I think it would be cleaner to implement it with `Map.alter` which can both
-update existing element or insert a new one.
-
 ### `runCSNASink`
 
 At some stage more `TracerConfig` entries should be exposed in options, e.g.

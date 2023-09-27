@@ -279,11 +279,12 @@ addSeenHeader :: SlotNo
               -> Peer
               -> UTCTime
               -> BlockState -> BlockState
-addSeenHeader slot block hash peer time =
-  Map.insertWith
-    (\_ o->o{bl_downloadedHeader= bl_downloadedHeader o ++ [(peer,time)]})
-    hash
-    (defaultBlockData block slot){bl_downloadedHeader=[(peer,time)]}
+addSeenHeader slot block hash peer time = Map.alter f hash
+  where
+    f blockDataM =
+      case blockDataM of
+        Nothing -> Just (defaultBlockData block slot) { bl_downloadedHeader = [(peer,time)]}
+        Just bd -> Just bd { bl_downloadedHeader = bl_downloadedHeader bd ++ [(peer,time)]}
 
 addFetchRequest :: Hash
                 -> Int
