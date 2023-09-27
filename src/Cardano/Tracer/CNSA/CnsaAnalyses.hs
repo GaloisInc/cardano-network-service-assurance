@@ -281,10 +281,11 @@ addSeenHeader :: SlotNo
               -> BlockState -> BlockState
 addSeenHeader slot block hash peer time = Map.alter f hash
   where
+    update bd = bd { bl_downloadedHeader = bl_downloadedHeader bd ++ [(peer,time)] }
     f blockDataM =
       case blockDataM of
-        Nothing -> Just (defaultBlockData block slot) { bl_downloadedHeader = [(peer,time)]}
-        Just bd -> Just bd { bl_downloadedHeader = bl_downloadedHeader bd ++ [(peer,time)]}
+        Nothing -> Just (update (defaultBlockData block slot))
+        Just bd -> Just (update bd)
 
 addFetchRequest :: Hash
                 -> Int
