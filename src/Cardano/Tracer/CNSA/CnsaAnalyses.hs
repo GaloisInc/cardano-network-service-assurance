@@ -19,6 +19,7 @@ import           Data.IORef
 import           Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict(Map)
+import           Data.Ord (Down(..))
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
 import           GHC.Generics
 import           Network.HostName (HostName)
@@ -190,10 +191,7 @@ mkBlockStatusAnalysis traceDP debugTr registry =
         _ ->
             return ()
 
-      let getSortedBySlots m =
-              reverse
-            $ sortOn (bl_slot . snd)
-            $ Map.toList m
+      let getSortedBySlots m = sortOn (Down . bl_slot . snd) (Map.toList m)
 
           debugTraceBlockData nm es =
             do
@@ -340,7 +338,7 @@ splitMapOn :: (Ord k, Ord b)
            => Int -> (a -> b) -> Map k a -> (Map k a, [(k,a)])
 splitMapOn n f m0 = (Map.fromList keepers, overflow)
   where
-  (keepers,overflow) = splitAt n $ reverse $ sortOn (f . snd) $ Map.toList m0
+  (keepers,overflow) = splitAt n $ sortOn (Down . f . snd) $ Map.toList m0
 
 -- | Adjust the value by the function if the key exists, or produce `Nothing`
 -- otherwise.

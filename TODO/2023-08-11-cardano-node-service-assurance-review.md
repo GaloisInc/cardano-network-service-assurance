@@ -101,21 +101,6 @@ data BlockData =
             }
 ```
 
-### `splitMapOn`
-
-We can use `Down` to avoid `reverse`:
-```
-splitMapOn :: (Ord k, Ord b)
-           => Int -> (a -> b) -> Map k a -> (Map k a, [(k,a)])
-splitMapOn n f m0 = (Map.fromList keepers, overflow)
-  where
-  (keepers,overflow) = splitAt n $ sortOn (Down . f . snd) $ Map.toList m0
-
-```
-
-The same is true about `getSortedBySlots` in the body of `mkBlockStatusAnalysis`.
-
-
 #### `addSeenHeader`
 
 I think it would be cleaner to implement it with `Map.alter` which can both
