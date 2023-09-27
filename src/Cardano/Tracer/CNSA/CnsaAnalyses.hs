@@ -104,7 +104,7 @@ mkCnsaSinkAnalyses traceDP debugTr =
 type BlockState = Map Hash BlockData
 
 -- If we get any of the 'other' messages before we see the downloaded header,
--- we print warnings and ignore the log messag.
+-- we print warnings and ignore the log message.
 
 -- type Delay = Int      -- MSecs -- TODO
 
