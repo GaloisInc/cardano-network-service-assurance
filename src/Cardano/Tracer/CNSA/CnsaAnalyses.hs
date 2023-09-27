@@ -342,13 +342,16 @@ splitMapOn n f m0 = (Map.fromList keepers, overflow)
   where
   (keepers,overflow) = splitAt n $ reverse $ sortOn (f . snd) $ Map.toList m0
 
+-- | Adjust the value by the function if the key exists, or produce `Nothing`
+-- otherwise.
+--
+-- >>> adjustIfMember (+ 1) "one" (Map.singleton "two" 2)
+-- Nothing
+--
+-- >>> adjustIfMember (+ 1) "one" (Map.singleton "one" 1)
+-- Just (Map.fromList [("one", 2)])
 adjustIfMember :: Ord k => (a -> a) -> k -> Map k a -> Maybe (Map k a)
-adjustIfMember f k m =
-  if k `Map.member` m then
-    Just $ Map.adjust f k m
-  else
-    Nothing
-  -- not seeing how to do with single call.
+adjustIfMember f = Map.alterF (fmap (Just . f))
 
 
 ---- IORef utilities -------------------------------------------------

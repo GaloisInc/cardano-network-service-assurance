@@ -101,25 +101,6 @@ data BlockData =
             }
 ```
 
-#### `adjustIfMember`
-
-Can be implemented more efficiently (just one lookup, instead of two) with:
-```
-adjustIfMember :: Ord k => (a -> a) -> k -> Map k a -> Map k a
-adjustIfMember f k = Map.alter k (fmap f)
-```
-
-or if we need to cary the result out of the callback, one can use `alterF`, e.g.
-
-```
-adjustIfMember :: Ord k
-               => (a -> a)
-               -> k
-               -> Map k a
-               -> (Bool, Map k a) -- return True if the map was modified
-adjustIfMember f k = Map.alterF k (\a -> (isJust a, f <$> a))
-```
-
 ### `splitMapOn`
 
 We can use `Down` to avoid `reverse`:
