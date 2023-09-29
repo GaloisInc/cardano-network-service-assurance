@@ -163,19 +163,6 @@ mkBlockStatusAnalysis
   -> IO (Log.TraceObject -> LO.LOBody -> IO ())
 mkBlockStatusAnalysis analysisState debugTr =
   do
-  let updateBlockData = modifyIORef' blockStateRef
-  let updateBlockDataByKey k f =
-        modifyIORefMaybe blockStateRef
-          (\m-> case adjustIfMember f k m of
-                  Just m' -> return (Just m')
-                  Nothing ->
-                    do
-                    warnMsg
-                      ["ignoring Log, hash not in current block data: "
-                        ++ show k]
-                    return Nothing
-          )
-
   let
     doLogEvent :: Log.TraceObject -> LO.LOBody -> IO ()
     doLogEvent trObj logObj =
@@ -270,6 +257,19 @@ mkBlockStatusAnalysis analysisState debugTr =
   return doLogEvent
   where
     blockStateRef = asBlockStateRef analysisState
+
+    updateBlockData = modifyIORef' blockStateRef
+    updateBlockDataByKey k f =
+        modifyIORefMaybe blockStateRef
+          (\m-> case adjustIfMember f k m of
+                  Just m' -> return (Just m')
+                  Nothing ->
+                    do
+                    warnMsg
+                      ["ignoring Log, hash not in current block data: "
+                        ++ show k]
+                    return Nothing
+          )
 
     debugTraceBlockData nm es =
       do
