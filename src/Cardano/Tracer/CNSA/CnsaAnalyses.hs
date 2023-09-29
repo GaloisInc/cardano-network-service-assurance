@@ -74,7 +74,7 @@ mkCnsaSinkAnalyses traceDP debugTr =
 
   analysisState <- newAnalysisState registry traceDP
 
-  sendTraceLogObj <- mkBlockStatusAnalysis analysisState traceDP debugTr registry
+  sendTraceLogObj <- mkBlockStatusAnalysis analysisState debugTr
   return (
            -- handle TraceObject:
            \trObj->
@@ -159,11 +159,9 @@ newAnalysisState registry traceDP =
 
 mkBlockStatusAnalysis
   :: AnalysisState
-  -> Trace IO DataPoint
   -> OrigCT.Tracer IO String
-  -> PR.Registry
   -> IO (Log.TraceObject -> LO.LOBody -> IO ())
-mkBlockStatusAnalysis analysisState traceDP debugTr registry =
+mkBlockStatusAnalysis analysisState debugTr =
   do
   let updateBlockData = modifyIORef' blockStateRef
   let updateBlockDataByKey k f =
