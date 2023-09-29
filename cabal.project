@@ -35,6 +35,9 @@ write-ghc-environment-files: always
 --   efbf9283.. : refactor cardano-tracer-bench.hs
 --   Fri Jun 2 17:04:18 2023 : Mark Tullsen
 --
+-- NOTE:
+--   tag 8.1.1 doesn't include this, tag 8.1.2-pre does include this.
+--  
 -- And secondly, we want to have a consistent set of packages from 
 -- the 'cardano-node' repo as we use them as libraries for cnsa.
    

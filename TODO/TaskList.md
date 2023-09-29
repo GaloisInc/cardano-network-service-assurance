@@ -19,7 +19,7 @@
       e.g., an environment variable with executable name, the
       executable would read json values from a pipe (e.g.!)
             
-## Priority Two Goals
+## Priority Two Goals ##
 
   * [ ] Add new CNSA analysis for *block content metrics*.
     - We'd like to write analyses that incorporate additional sources
@@ -39,7 +39,7 @@
   * [ ] Extend logging of cnsa-sink to handle log-rotation, etc. using
         code from cardano-tracer library.
 
-## Supporting the Use/Application of CNSA
+## Supporting the Use/Application of CNSA ##
 
 Objective here: Make the the CNSA easier for users and the community
 to learn, use, and adapt; thus extending the target set of data
@@ -61,6 +61,6 @@ extraction and rendering.  Some potential instances of this would be
   * [ ] Create example threshold and alarms with Grafana.
   * [ ] Write a demo programs for cnsa-sink datapoint consumers (in Haskell).
 
-## Future Work
+## Future Work ##
 
   * [ ] Extend remote logging integration (e.g. datadog, papertrail).

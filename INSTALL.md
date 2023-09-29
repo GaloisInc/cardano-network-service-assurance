@@ -30,20 +30,26 @@ sudo make install
 
 CNSA has only been tested on Linux.
 
-### Caveats
+### Caveats & Recommendations
 
-You should *not* build `exe:cardano-node` from this repo, although it
-would be allowed: the version indicates `cardano-node-8.1.1`, it is not the
-same as the officially tagged `8.1.1`.  Our tools use
-`lib:cardano-node`, so we must have the `cardano-node` package
-available.  You are encouraged to use your standard `cardano-node`
-build process, it will support "new tracing" and needs no
-modifications to work as a CNSA sampling node.
+Our tools use `lib:cardano-node`, so we must have the `cardano-node`
+package available. However, ...
 
-You *should* build `exe:cardano-tracer` from this package. By doing
-so, you will ensure you get a version that contains the required
-"re-forwarding tracer" extension.  (Note the comments in
-`cabal.project`.)
+It is not recommended to build `exe:cardano-node` from this repo, you
+are encouraged to use your standard `cardano-node` build process, which
+will support "new tracing" and needs no modifications to work as a
+CNSA sampling node.
+
+However, one *could* build `exe:cardano-node` from this repo.  The
+version, in cabal.project, is currently `cardano-node-8.1.1`, not the
+same as the officially tagged `8.1.1`.
+
+You *must* build `exe:cardano-tracer` with support for "re-forwarding
+tracer" extension.  You can do this by either
+ - building it in this package, note the comments in `cabal.project`!
+ - building it in the `cardano-node` repo with an unreleased version:
+   - i.e., `master` and tag `8.2.1-pre` do support re-forwarding
+   - tag `8.1.2` does not support re-forwarding.
 
 ### Building CNSA executables
 
