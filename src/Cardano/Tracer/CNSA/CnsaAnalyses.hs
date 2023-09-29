@@ -72,7 +72,9 @@ mkCnsaSinkAnalyses traceDP debugTr =
   -- trivial 'proof of life' metric:
   metric_traceCtr <- PR.registerCounter "count_of_tracelogs" mempty registry
 
-  sendTraceLogObj <- mkBlockStatusAnalysis traceDP debugTr registry
+  analysisState <- newAnalysisState registry traceDP
+
+  sendTraceLogObj <- mkBlockStatusAnalysis analysisState traceDP debugTr registry
   return (
            -- handle TraceObject:
            \trObj->
@@ -125,14 +127,44 @@ blockStateMax :: Int
 blockStateMax = 5
   -- FIXME: make configurable.
 
+data AnalysisState = AnalysisState
+  { asBlockStateRef :: IORef BlockState,
+    asBlockStateTrace :: Trace IO BlockState,
+    asTopSlotGauge :: PG.Gauge,
+    asPenultSlotGauge :: PG.Gauge,
+    asPropDelaysHist :: PH.Histogram
+  }
+
+newAnalysisState :: PR.Registry -> Trace IO DataPoint -> IO AnalysisState
+newAnalysisState registry traceDP =
+  do
+    blockStateRef <- newIORef mempty
+    blockStateTrace <- contramap BlockState' <$> mkDataPointTracer traceDP
+    topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
+    penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
+    propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
+                          buckets
+                          registry
+    pure
+      AnalysisState
+        { asBlockStateRef = blockStateRef,
+          asBlockStateTrace = blockStateTrace,
+          asTopSlotGauge = topSlotGauge,
+          asPenultSlotGauge = penultSlotGauge,
+          asPropDelaysHist = propDelaysHist
+        }
+  where
+    buckets = [0.1,0.2..2.0]
+
+
 mkBlockStatusAnalysis
-  :: Trace IO DataPoint
+  :: AnalysisState
+  -> Trace IO DataPoint
   -> OrigCT.Tracer IO String
   -> PR.Registry
   -> IO (Log.TraceObject -> LO.LOBody -> IO ())
-mkBlockStatusAnalysis traceDP debugTr registry =
+mkBlockStatusAnalysis analysisState traceDP debugTr registry =
   do
-  blockStateRef   <- newIORef (Map.empty :: BlockState)
   let updateBlockData = modifyIORef' blockStateRef
   let updateBlockDataByKey k f =
         modifyIORefMaybe blockStateRef
@@ -145,16 +177,6 @@ mkBlockStatusAnalysis traceDP debugTr registry =
                         ++ show k]
                     return Nothing
           )
-
-  topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
-  penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
-  propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
-                       [0.1,0.2..2.0]
-                       registry
-
-  -- Create BlockState tracer:
-  trBlockState :: Trace IO BlockState
-    <- contramap BlockState' <$> mkDataPointTracer traceDP
 
   let
     doLogEvent :: Log.TraceObject -> LO.LOBody -> IO ()
@@ -201,7 +223,7 @@ mkBlockStatusAnalysis traceDP debugTr registry =
                         (splitMapOn blockStateMax bl_slot)
 
       -- update blockState Datapoint:
-      readIORef blockStateRef >>= traceWith trBlockState
+      readIORef blockStateRef >>= traceWith (asBlockStateTrace analysisState)
 
       -- Process 'overflowList': 
       if null overflowList then
@@ -226,8 +248,8 @@ mkBlockStatusAnalysis traceDP debugTr registry =
               SlotNo slot1 = bl_slot b1
 
             -- update slot metrics:
-            PG.set (fromIntegral slot0) topSlotGauge
-            PG.set (fromIntegral slot1) penultSlotGauge
+            PG.set (fromIntegral slot0) (asTopSlotGauge analysisState)
+            PG.set (fromIntegral slot1) (asPenultSlotGauge analysisState)
               -- NOTE: No integers? everything a float?!
               --       See node's prometheus output: has integers
 
@@ -242,14 +264,15 @@ mkBlockStatusAnalysis traceDP debugTr registry =
             OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
             when (any (\(_,d)-> d < 0) delays) $
               errorMsg ["Negative Delay"]
-            mapM_ ((\v-> PH.observe v propDelaysHist) . cvtTime . snd) delays
+            mapM_ ((\v-> PH.observe v (asPropDelaysHist analysisState)) . cvtTime . snd) delays
 
         -- unless we have at least two blocks recorded, do nothing:
         _ ->
             return ()
-
   return doLogEvent
   where
+    blockStateRef = asBlockStateRef analysisState
+
     debugTraceBlockData nm es =
       do
         OrigCT.traceWith debugTr (nm ++ " block data:")
