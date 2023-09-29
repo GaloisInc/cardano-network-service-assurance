@@ -165,14 +165,6 @@ mkBlockStatusAnalysis ::
   IO ()
 mkBlockStatusAnalysis analysisState debugTr trObj logObj =
   do
-    let time = Log.toTimestamp trObj
-        withPeer f =
-            case getPeerFromTraceObject trObj of
-              Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
-
-              Right p -> f p
-        host = Log.toHostname trObj
-
     -- Update 'blockStateRef :: IORef BlockState' :
     case logObj of
       LO.LOChainSyncClientSeenHeader slotno blockno hash ->
@@ -253,6 +245,14 @@ mkBlockStatusAnalysis analysisState debugTr trObj logObj =
       _ ->
           return ()
   where
+    time = Log.toTimestamp trObj
+    host = Log.toHostname trObj
+
+    withPeer f =
+      case getPeerFromTraceObject trObj of
+        Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
+        Right p -> f p
+
     blockStateRef = asBlockStateRef analysisState
 
     updateBlockData = modifyIORef' blockStateRef
