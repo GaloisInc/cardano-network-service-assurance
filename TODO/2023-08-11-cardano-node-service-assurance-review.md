@@ -39,45 +39,6 @@ of `SlotNo` and `Hash`), we wouldn't have that problem.
 
 ####
 
-Can this function
-```
-mkBlockStatusAnalysis
-  :: Trace IO DataPoint
-  -> OrigCT.Tracer IO String
-  -> PR.Registry
-  -> IO (Log.TraceObject -> LO.LOBody -> IO ())
-```
-be turned into
-```
-mkBlockStatusAnalysis
-  :: Trace IO DataPoint
-  -> OrigCT.Tracer IO String
-  -> PR.Registry
-  -> Log.TraceObject
-  -> LO.LOBody
-  -> IO ()
-```
-or if it requires some state that needs to be keept behind the scene the `with`
-pattern might be a good idea, e.g.
-
-```
-data State = ...
-
-withState :: :: Trace IO DataPoint
-             -> OrigCT.Tracer IO String
-             -> PR.Registry
-             -> (State -> IO a)
-             -> IO a
-withState = undefined
-
--- or maybe it should be called 'analyseEvent'
-logEvent :: State -> Log.TraceObject -> LO.LOBody -> IO ()
-logEvent = undefined
-```
-
-
-####
-
 Should `bl_downloadeedHeader`, `bl_sendFetchrequest`, `bl_completdBlockFetch`
 be strict maps?
 
