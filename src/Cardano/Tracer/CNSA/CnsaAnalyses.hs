@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -191,19 +190,9 @@ mkBlockStatusAnalysis traceDP debugTr registry =
         _ ->
             return ()
 
-      let getSortedBySlots m = sortOn (Down . bl_slot . snd) (Map.toList m)
-
-          debugTraceBlockData nm es =
-            do
-            OrigCT.traceWith debugTr (nm ++ " block data:")
-            mapM_ (OrigCT.traceWith debugTr . show) es
-            OrigCT.traceWith debugTr ""
-            -- FIXME[F3]: make fancier
-
       -- debugTracing:
-      () <- do
-            raw0 <- readIORef blockStateRef
-            debugTraceBlockData "blockState[pre]" (getSortedBySlots raw0)
+      raw0 <- readIORef blockStateRef
+      debugTraceBlockData "blockState[pre]" (getSortedBySlots raw0)
 
       -- update 'blockStateRef', removing overflow:
       overflowList <- atomicModifyIORef'
@@ -215,7 +204,7 @@ mkBlockStatusAnalysis traceDP debugTr registry =
 
       -- Process 'overflowList': 
       if null overflowList then
-        OrigCT.traceWith debugTr ("Overflow: none")
+        OrigCT.traceWith debugTr "Overflow: none"
       else
         -- (print to stdout for now, later...?)
         -- FIXME: this is not ideal, esp. the hFlush!
@@ -253,8 +242,7 @@ mkBlockStatusAnalysis traceDP debugTr registry =
             OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
             when (any (\(_,d)-> d < 0) delays) $
               errorMsg ["Negative Delay"]
-            mapM_ (\v-> PH.observe v propDelaysHist)
-                  (map (cvtTime . snd) delays)
+            mapM_ ((\v-> PH.observe v propDelaysHist) . cvtTime . snd) delays
 
         -- unless we have at least two blocks recorded, do nothing:
         _ ->
