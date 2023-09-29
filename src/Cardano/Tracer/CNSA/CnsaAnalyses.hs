@@ -133,6 +133,19 @@ mkBlockStatusAnalysis
 mkBlockStatusAnalysis traceDP debugTr registry =
   do
   blockStateRef   <- newIORef (Map.empty :: BlockState)
+  let updateBlockData = modifyIORef' blockStateRef
+  let updateBlockDataByKey k f =
+        modifyIORefMaybe blockStateRef
+          (\m-> case adjustIfMember f k m of
+                  Just m' -> return (Just m')
+                  Nothing ->
+                    do
+                    warnMsg
+                      ["ignoring Log, hash not in current block data: "
+                        ++ show k]
+                    return Nothing
+          )
+
   topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
   penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
   propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
@@ -154,18 +167,6 @@ mkBlockStatusAnalysis traceDP debugTr registry =
 
                 Right p -> f p
           host = Log.toHostname trObj
-          updateBlockData f = modifyIORef' blockStateRef f
-          updateBlockDataByKey k f =
-            modifyIORefMaybe blockStateRef
-              (\m-> case adjustIfMember f k m of
-                      Just m' -> return (Just m')
-                      Nothing ->
-                        do
-                        warnMsg
-                          ["ignoring Log, hash not in current block data: "
-                           ++ show k]
-                        return Nothing
-              )
 
       -- Update 'blockStateRef :: IORef BlockState' :
       case logObj of
@@ -232,7 +233,6 @@ mkBlockStatusAnalysis traceDP debugTr registry =
 
             -- update propagation metrics for b1/slot1 (penultimate):
             let
-              cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
               delays  = map
                           (\(p,t)->
                              (p, diffUTCTime t (slotStart (SlotNo slot1))))
@@ -249,6 +249,17 @@ mkBlockStatusAnalysis traceDP debugTr registry =
             return ()
 
   return doLogEvent
+  where
+    debugTraceBlockData nm es =
+      do
+        OrigCT.traceWith debugTr (nm ++ " block data:")
+        mapM_ (OrigCT.traceWith debugTr . show) es
+        OrigCT.traceWith debugTr ""
+        -- FIXME[F3]: make fancier
+
+    cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
+
+    getSortedBySlots m = sortOn (Down . bl_slot . snd) (Map.toList m)
 
 defaultBlockData :: BlockNo -> SlotNo -> BlockData
 defaultBlockData b s =
