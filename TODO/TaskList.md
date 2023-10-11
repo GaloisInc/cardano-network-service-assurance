@@ -1,5 +1,4 @@
 # Task List #
-
 ## Goals for Fall 2023 ##
 
   * [ ] Add new CNSA analysis for *progress of syncing, e.g. fetched

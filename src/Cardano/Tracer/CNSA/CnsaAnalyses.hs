@@ -7,8 +7,8 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Cardano.Tracer.CNSA.CnsaAnalyses
- ( mkCnsaSinkAnalyses
- )
+  ( mkCnsaSinkAnalyses
+  )
 where
 
 -- base:

@@ -1,7 +1,8 @@
 {-# LANGUAGE LambdaCase #-}
 
-import System.Environment (getArgs)
+module Main(main) where
 
+import System.Environment (getArgs)
 import Cardano.Tracer.CNSA.CnsaSink
 
 main :: IO ()
