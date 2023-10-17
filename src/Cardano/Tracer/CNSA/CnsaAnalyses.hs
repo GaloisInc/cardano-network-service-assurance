@@ -63,10 +63,7 @@ import           Cardano.Utils.SlotTimes
 ------------------------------------------------------------------------------
 -- Types
 
-type Set a = [a]
-     -- FIXME: get rid of.
-     -- FIXME: When you start using, use code from updated cardano-tracer
-     --        to filter and combine.
+type Set a = [a] -- FIXME: get rid of.
 
 data AnalysisArgs = AnalysisArgs
   { aaRegistry :: PR.Registry             -- ^ prometheus registry
@@ -74,7 +71,25 @@ data AnalysisArgs = AnalysisArgs
   , aaDebugTr  :: OrigCT.Tracer IO String -- ^ cnsa debugging tracer
   }
 
--- | This type captures a 'generic' analysis:  
+-- | Analysis - capture a 'generic' analysis that receives traceobjects
+--              and updates datapoints, logs ..., and serves prometheus
+--              data.
+--
+-- Future / FIXMEs:
+--  - use/implement aTraceNames
+--      - use code from updated cardano-tracer to filter and combine.
+--  - here or _: build in code that does "overflowing" datapoints
+--  - stop writing to stdout, but ...
+--    - each analysis has own file
+--    - each analysis has own prefix in one logfile/logsystem?
+--  - datapoint 'abstractions/improvements
+--     - rather than adhoc Log.MetaTrace, can you ...
+--       - enumerate datapoint types & names in Analysis?
+--       - ...?
+--  - debugTracing vs stdout vs _: get all in order
+--  - other conveniences
+--    - turn [scalar] datapoints [easily/automatically] into prometheus data
+--    - ?
 data Analysis = forall state. Analysis
   { aName               :: String
   , aTraceNames         :: Set [String] -- FIXME: String?
@@ -97,6 +112,7 @@ analyses = [ countTraceLogsAnalysis
            ]
 
 ------------------------------------------------------------------------------
+-- Analysis abstractions:
 
 -- | initialize one analysis
 initAnalysis :: AnalysisArgs
@@ -110,7 +126,10 @@ initAnalysis args Analysis{aInitialize,aName,aProcessTraceObject} =
     Left ss -> error $ unlines ("Failure:" : ss)
     Right s -> return $ aProcessTraceObject args s
 
-      
+
+------------------------------------------------------------------------------
+-- our toplevel
+
 -- | initialize all analyses and return generic handlers:
 mkCnsaSinkAnalyses :: Trace IO DataPoint
                    -> OrigCT.Tracer IO String
@@ -121,9 +140,9 @@ mkCnsaSinkAnalyses traceDP debugTr =
   let args = AnalysisArgs registry traceDP debugTr
 
   -- Consolidate all analyses:
-  --   FIXME[E2]: use the traceNames Set to make more efficient:
   as' <- mapM (initAnalysis args) analyses
   let sendTraceLogObjectToAnalyses o b = mapM_ (\p-> p o b) as'
+    -- FIXME[E2]: use the aTraceNames Set to make more efficient.
   
   -- Return code that delegates/distributes to all analyses:
   return
@@ -148,7 +167,8 @@ mkCnsaSinkAnalyses traceDP debugTr =
 
 
 ------------------------------------------------------------------------------
--- proof of life analysis:
+-- a trivial proof of life analysis:
+--
 
 countTraceLogsAnalysis :: Analysis
 countTraceLogsAnalysis =
@@ -168,8 +188,17 @@ countTraceLogsAnalysis =
 
 
 ------------------------------------------------------------------------------
--- The block status analysis
+-- The block status analysis:
 --
+
+blockStatusAnalysis :: Analysis
+blockStatusAnalysis =
+  Analysis { aName=               "Block Status"
+           , aTraceNames=         []
+           , aInitialize=         initializeBlockStatusAnalysis
+           , aProcessTraceObject= processBlockStatusAnalysis
+           }
+
 
 type BlockState = Map Hash BlockData
 
@@ -204,13 +233,6 @@ data BlockAnalysisState = BlockAnalysisState
     asPropDelaysHist  :: PH.Histogram
   }
 
-blockStatusAnalysis :: Analysis
-blockStatusAnalysis =
-  Analysis { aName=               "Block Status"
-           , aTraceNames=         []
-           , aInitialize=         initializeBlockStatusAnalysis
-           , aProcessTraceObject= processBlockStatusAnalysis
-           }
 
 initializeBlockStatusAnalysis
   :: AnalysisArgs -> IO (Possibly BlockAnalysisState)
@@ -358,6 +380,7 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
     cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
 
     getSortedBySlots m = sortOn (Down . bl_slot . snd) (Map.toList m)
+
 
 defaultBlockData :: BlockNo -> SlotNo -> BlockData
 defaultBlockData b s =
