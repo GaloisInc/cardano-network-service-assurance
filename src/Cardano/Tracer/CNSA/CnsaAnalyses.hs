@@ -73,10 +73,12 @@ data AnalysisArgs = AnalysisArgs
   , aaTraceDP  :: Trace IO DataPoint      -- ^ toplevel datapoint trace
   , aaDebugTr  :: OrigCT.Tracer IO String -- ^ cnsa debugging tracer
   }
-  
+
+-- | This type captures a 'generic' analysis:  
 data Analysis = forall state. Analysis
   { aName               :: String
-  , aTraceNames         :: Set [String] -- FIXME: ?
+  , aTraceNames         :: Set [String] -- FIXME: String?
+                                        -- FIXME: use.
   , aInitialize         :: AnalysisArgs -> IO (Possibly state)
   , aProcessTraceObject :: AnalysisArgs
                         -> state
@@ -109,8 +111,7 @@ initAnalysis args Analysis{aInitialize,aName,aProcessTraceObject} =
     Right s -> return $ aProcessTraceObject args s
 
       
--- | initialize all analyses and return two generic handlers:
-
+-- | initialize all analyses and return generic handlers:
 mkCnsaSinkAnalyses :: Trace IO DataPoint
                    -> OrigCT.Tracer IO String
                    -> IO (Log.TraceObject -> IO (), IO ())
@@ -165,8 +166,9 @@ countTraceLogsAnalysis =
     pto _ metric_traceCtr _ _ =
       PC.inc metric_traceCtr
 
+
 ------------------------------------------------------------------------------
--- Code for blockStatusAnalysis
+-- The block status analysis
 --
 
 type BlockState = Map Hash BlockData
@@ -194,7 +196,6 @@ blockStateMax :: Int
 blockStateMax = 5
   -- FIXME: make configurable.
 
--- FIXME[C2]: misnomer: config/global-refs (not really State per se)
 data BlockAnalysisState = BlockAnalysisState
   { asBlockStateRef   :: IORef BlockState,
     asBlockStateTrace :: Trace IO BlockState,
@@ -205,10 +206,10 @@ data BlockAnalysisState = BlockAnalysisState
 
 blockStatusAnalysis :: Analysis
 blockStatusAnalysis =
-  Analysis { aName = "Block Status"
-           , aTraceNames = []
-           , aInitialize = initializeBlockStatusAnalysis
-           , aProcessTraceObject = processBlockStatusAnalysis
+  Analysis { aName=               "Block Status"
+           , aTraceNames=         []
+           , aInitialize=         initializeBlockStatusAnalysis
+           , aProcessTraceObject= processBlockStatusAnalysis
            }
 
 initializeBlockStatusAnalysis
@@ -219,9 +220,8 @@ initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
     blockStateTrace <- contramap BlockState' <$> mkDataPointTracer traceDP
     topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
     penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
-    propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
-                          buckets
-                          registry
+    propDelaysHist  <- PR.registerHistogram "propDelays"
+                         mempty buckets registry
     pure $ Right $
       BlockAnalysisState
         { asBlockStateRef   = blockStateRef,
