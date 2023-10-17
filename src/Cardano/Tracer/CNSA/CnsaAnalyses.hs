@@ -5,6 +5,8 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Cardano.Tracer.CNSA.CnsaAnalyses
   ( mkCnsaSinkAnalyses
@@ -59,8 +61,55 @@ import           Cardano.Utils.SlotTimes
 
 
 ------------------------------------------------------------------------------
--- Create *all* CNSA Sink Analyses
---
+-- Types
+
+type Set a = [a]
+     -- FIXME: get rid of.
+     -- FIXME: When you start using, use code from updated cardano-tracer
+     --        to filter and combine.
+
+data AnalysisArgs = AnalysisArgs
+  { aaRegistry :: PR.Registry             -- ^ prometheus registry
+  , aaTraceDP  :: Trace IO DataPoint      -- ^ toplevel datapoint trace
+  , aaDebugTr  :: OrigCT.Tracer IO String -- ^ cnsa debugging tracer
+  }
+  
+data Analysis = forall state. Analysis
+  { aName               :: String
+  , aTraceNames         :: Set [String] -- FIXME: ?
+  , aInitialize         :: AnalysisArgs -> IO (Possibly state)
+  , aProcessTraceObject :: AnalysisArgs
+                        -> state
+                        -> Log.TraceObject -> LO.LOBody -> IO ()
+  }
+
+type Possibly a = Either [String] a  -- FIXME: an existing synonym for?
+
+
+------------------------------------------------------------------------------
+-- All CNSA Analyses:
+
+analyses :: [Analysis]
+analyses = [ countTraceLogsAnalysis
+           , blockStatusAnalysis
+           ]
+
+------------------------------------------------------------------------------
+
+-- | initialize one analysis
+initAnalysis :: AnalysisArgs
+             -> Analysis
+             -> IO (Log.TraceObject -> LO.LOBody -> IO ())
+initAnalysis args Analysis{aInitialize,aName,aProcessTraceObject} =
+  do
+  ms <- aInitialize args
+  putStrLn $ "Initializing analysis '" ++ aName ++ "'"
+  case ms of
+    Left ss -> error $ unlines ("Failure:" : ss)
+    Right s -> return $ aProcessTraceObject args s
+
+      
+-- | initialize all analyses and return two generic handlers:
 
 mkCnsaSinkAnalyses :: Trace IO DataPoint
                    -> OrigCT.Tracer IO String
@@ -68,36 +117,56 @@ mkCnsaSinkAnalyses :: Trace IO DataPoint
 mkCnsaSinkAnalyses traceDP debugTr =
   do
   registry <- PR.new
+  let args = AnalysisArgs registry traceDP debugTr
 
-  -- trivial 'proof of life' metric:
-  metric_traceCtr <- PR.registerCounter "count_of_tracelogs" mempty registry
+  -- Consolidate all analyses:
+  --   FIXME[E2]: use the traceNames Set to make more efficient:
+  as' <- mapM (initAnalysis args) analyses
+  let sendTraceLogObjectToAnalyses o b = mapM_ (\p-> p o b) as'
+  
+  -- Return code that delegates/distributes to all analyses:
+  return
+    ( -- handle TraceObject:
+      \trObj->
+        do
+        OrigCT.traceWith debugTr ("recvd traceLogObj: " ++ show trObj)
+        case getLogBody trObj of
+          Left s -> warnMsg
+                      [ "unparseable TraceObject:", s]
+          Right lb ->
+              do
+              OrigCT.traceWith debugTr ("parsed log body: " ++ show lb)
+              case lb of
+                LB_LOBody lb' -> sendTraceLogObjectToAnalyses trObj lb'
+                LB_Etc    _   -> return ()
 
-  sendTraceLogObj <- mkBlockStatusAnalysis registry traceDP debugTr
-  return (
-           -- handle TraceObject:
-           \trObj->
-             do
-             PC.inc metric_traceCtr
-
-             OrigCT.traceWith debugTr ("recvd traceLogObj: " ++ show trObj)
-             case getLogBody trObj of
-               Left s -> warnMsg
-                           [ "unparseable TraceObject:", s]
-               Right lb ->
-                   do
-                   OrigCT.traceWith debugTr ("parsed log body: " ++ show lb)
-                   case lb of
-                     LB_LOBody lb' -> sendTraceLogObj trObj lb'
-                     LB_Etc    _   -> return ()
-
-         , PS.serveMetrics 8080 ["metrics"] (PR.sample registry)
-             -- http://localhost:8080/metrics
-             -- FIXME: configure port
-         )
+    , PS.serveMetrics 8080 ["metrics"] (PR.sample registry)
+        -- http://localhost:8080/metrics
+        -- FIXME[F1]: configure port
+    )
 
 
 ------------------------------------------------------------------------------
--- Code for Analysis: mkBlockStatusAnalysis
+-- proof of life analysis:
+
+countTraceLogsAnalysis :: Analysis
+countTraceLogsAnalysis =
+  Analysis{ aName = "count trace logs"
+          , aTraceNames = []
+          , aInitialize = initialize
+          , aProcessTraceObject = pto
+          }
+  where
+    initialize args = do
+      metric_traceCtr <-
+        PR.registerCounter "count_of_tracelogs" mempty (aaRegistry args)
+      return (Right metric_traceCtr)
+
+    pto _ metric_traceCtr _ _ =
+      PC.inc metric_traceCtr
+
+------------------------------------------------------------------------------
+-- Code for blockStatusAnalysis
 --
 
 type BlockState = Map Hash BlockData
@@ -125,20 +194,26 @@ blockStateMax :: Int
 blockStateMax = 5
   -- FIXME: make configurable.
 
--- FIXME: misnomer: config/global-refs (not really State per se)
-data AnalysisState = AnalysisState
-  { asBlockStateRef :: IORef BlockState,
+-- FIXME[C2]: misnomer: config/global-refs (not really State per se)
+data BlockAnalysisState = BlockAnalysisState
+  { asBlockStateRef   :: IORef BlockState,
     asBlockStateTrace :: Trace IO BlockState,
-    asTopSlotGauge :: PG.Gauge,
+    asTopSlotGauge    :: PG.Gauge,
     asPenultSlotGauge :: PG.Gauge,
-    asPropDelaysHist :: PH.Histogram
+    asPropDelaysHist  :: PH.Histogram
   }
 
-  -- FIXME: inline this structure?
+blockStatusAnalysis :: Analysis
+blockStatusAnalysis =
+  Analysis { aName = "Block Status"
+           , aTraceNames = []
+           , aInitialize = initializeBlockStatusAnalysis
+           , aProcessTraceObject = processBlockStatusAnalysis
+           }
 
--- FIXME: reduce scope / inline;
-newAnalysisState :: PR.Registry -> Trace IO DataPoint -> IO AnalysisState
-newAnalysisState registry traceDP =
+initializeBlockStatusAnalysis
+  :: AnalysisArgs -> IO (Possibly BlockAnalysisState)
+initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
   do
     blockStateRef <- newIORef mempty
     blockStateTrace <- contramap BlockState' <$> mkDataPointTracer traceDP
@@ -147,8 +222,8 @@ newAnalysisState registry traceDP =
     propDelaysHist  <- PR.registerHistogram "propDelays"       mempty
                           buckets
                           registry
-    pure
-      AnalysisState
+    pure $ Right $
+      BlockAnalysisState
         { asBlockStateRef   = blockStateRef,
           asBlockStateTrace = blockStateTrace,
           asTopSlotGauge    = topSlotGauge,
@@ -158,125 +233,120 @@ newAnalysisState registry traceDP =
   where
     buckets = [0.1,0.2..2.0]
 
-mkBlockStatusAnalysis
-  :: PR.Registry
-  -> Trace IO DataPoint 
-  -> OrigCT.Tracer IO String
-  -> IO (Log.TraceObject -> LO.LOBody -> IO ())
-mkBlockStatusAnalysis registry traceDP debugTr = 
-  do
-    analysisState <- newAnalysisState registry traceDP
-    let
-      blockStateRef = asBlockStateRef analysisState
-
-      updateBlockData = modifyIORef' blockStateRef
-      updateBlockDataByKey k f =
-          modifyIORefMaybe blockStateRef
-            (\m-> case adjustIfMember f k m of
-                    Just m' -> return (Just m')
-                    Nothing ->
-                      do
-                      warnMsg
-                        ["ignoring Log, hash not in current block data: "
-                          ++ show k]
-                      return Nothing
-            )
-
-    let processTraceObject trObj logObj = do
-          -- Update 'blockStateRef :: IORef BlockState' :
-          case logObj of
-            LO.LOChainSyncClientSeenHeader slotno blockno hash ->
-                withPeer $ \peer->
-                  updateBlockData (addSeenHeader slotno blockno hash peer time)
-
-            LO.LOBlockFetchClientRequested hash len ->
-                withPeer $ \peer->
-                  updateBlockDataByKey hash
-                    (addFetchRequest hash len peer time)
-
-            LO.LOBlockFetchClientCompletedFetch hash ->
-                withPeer $ \peer->
-                  updateBlockDataByKey hash
-                    (addFetchCompleted hash peer time)
-
-            LO.LOBlockAddedToCurrentChain hash msize len ->
-                updateBlockDataByKey hash
-                  (addAddedToCurrent hash msize len host time)
-
-            _ ->
-                return ()
-
-          -- debugTracing:
-          raw0 <- readIORef blockStateRef
-          debugTraceBlockData "blockState[pre]" (getSortedBySlots raw0)
-
-          -- update 'blockStateRef', removing overflow:
-          overflowList <- atomicModifyIORef'
-                            blockStateRef
-                            (splitMapOn blockStateMax bl_slot)
-
-          -- update blockState Datapoint:
-          readIORef blockStateRef >>= traceWith (asBlockStateTrace analysisState)
-
-          -- Process 'overflowList':
-          if null overflowList then
-            OrigCT.traceWith debugTr "Overflow: none"
-          else
-            -- (print to stdout for now, later...?)
-            -- FIXME: this is not ideal, esp. the hFlush!
-            do
-            hFlush stdout
-            mapM_ (\b-> putStrLn ("Overflow: " ++ show b))
-                  overflowList
-            hFlush stdout
-
-          -- Update Metrics:
-          raw1 <- getSortedBySlots <$> readIORef blockStateRef
-          debugTraceBlockData "blockState[post]" raw1
-          case map snd raw1 of
-            b0:b1:_ ->
-                do
-                let
-                  SlotNo slot0 = bl_slot b0
-                  SlotNo slot1 = bl_slot b1
-
-                -- update slot metrics:
-                PG.set (fromIntegral slot0) (asTopSlotGauge analysisState)
-                PG.set (fromIntegral slot1) (asPenultSlotGauge analysisState)
-                  -- NOTE: No integers? everything a float?!
-                  --       See node's prometheus output: has integers
-
-                -- update propagation metrics for b1/slot1 (penultimate):
-                let
-                  delays  = map
-                              (\(p,t)->
-                                  (p, diffUTCTime t (slotStart (SlotNo slot1))))
-                              (bl_downloadedHeader b1)
-                OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
-                OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
-                OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
-                when (any (\(_,d)-> d < 0) delays) $
-                  errorMsg ["Negative Delay"]
-                mapM_ ((\v-> PH.observe v (asPropDelaysHist analysisState))
-                       . cvtTime . snd)
-                       delays
-
-            -- unless we have at least two blocks recorded, do nothing:
-            _ ->
-                return ()
-
-          where
-            time = Log.toTimestamp trObj
-            host = Log.toHostname trObj
-            withPeer f =
-              case getPeerFromTraceObject trObj of
-                Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
-                Right p -> f p
-
-
-    return processTraceObject
+processBlockStatusAnalysis 
+  :: AnalysisArgs
+  -> BlockAnalysisState
+  -> Log.TraceObject -> LO.LOBody -> IO ()
+processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
+  processTraceObject 
 
   where
+    blockStateRef = asBlockStateRef state
+
+    updateBlockData = modifyIORef' blockStateRef
+    updateBlockDataByKey k f =
+        modifyIORefMaybe blockStateRef
+          (\m-> case adjustIfMember f k m of
+                  Just m' -> return (Just m')
+                  Nothing ->
+                    do
+                    warnMsg
+                      ["ignoring Log, hash not in current block data: "
+                        ++ show k]
+                    return Nothing
+          )
+
+    processTraceObject trObj logObj = do
+
+      -- Update 'blockStateRef :: IORef BlockState' :
+      case logObj of
+        LO.LOChainSyncClientSeenHeader slotno blockno hash ->
+            withPeer $ \peer->
+              updateBlockData (addSeenHeader slotno blockno hash peer time)
+
+        LO.LOBlockFetchClientRequested hash len ->
+            withPeer $ \peer->
+              updateBlockDataByKey hash
+                (addFetchRequest hash len peer time)
+
+        LO.LOBlockFetchClientCompletedFetch hash ->
+            withPeer $ \peer->
+              updateBlockDataByKey hash
+                (addFetchCompleted hash peer time)
+
+        LO.LOBlockAddedToCurrentChain hash msize len ->
+            updateBlockDataByKey hash
+              (addAddedToCurrent hash msize len host time)
+
+        _ ->
+            return ()
+
+      -- debugTracing:
+      raw0 <- readIORef blockStateRef
+      debugTraceBlockData "blockState[pre]" (getSortedBySlots raw0)
+
+      -- update 'blockStateRef', removing overflow:
+      overflowList <- atomicModifyIORef'
+                        blockStateRef
+                        (splitMapOn blockStateMax bl_slot)
+
+      -- update blockState Datapoint:
+      readIORef blockStateRef >>= traceWith (asBlockStateTrace state)
+
+      -- Process 'overflowList':
+      if null overflowList then
+        OrigCT.traceWith debugTr "Overflow: none"
+      else
+        -- (print to stdout for now, later...?)
+        -- FIXME: this is not ideal, esp. the hFlush!
+        do
+        hFlush stdout
+        mapM_ (\b-> putStrLn ("Overflow: " ++ show b))
+              overflowList
+        hFlush stdout
+
+      -- Update Metrics:
+      raw1 <- getSortedBySlots <$> readIORef blockStateRef
+      debugTraceBlockData "blockState[post]" raw1
+      case map snd raw1 of
+        b0:b1:_ ->
+            do
+            let
+              SlotNo slot0 = bl_slot b0
+              SlotNo slot1 = bl_slot b1
+
+            -- update slot metrics:
+            PG.set (fromIntegral slot0) (asTopSlotGauge state)
+            PG.set (fromIntegral slot1) (asPenultSlotGauge state)
+              -- NOTE: No integers? everything a float?!
+              --       See node's prometheus output: has integers
+
+            -- update propagation metrics for b1/slot1 (penultimate):
+            let
+              delays  = map
+                          (\(p,t)->
+                              (p, diffUTCTime t (slotStart (SlotNo slot1))))
+                          (bl_downloadedHeader b1)
+            OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
+            OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
+            OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
+            when (any (\(_,d)-> d < 0) delays) $
+              errorMsg ["Negative Delay"]
+            mapM_ ((\v-> PH.observe v (asPropDelaysHist state))
+                   . cvtTime . snd)
+                   delays
+
+        -- unless we have at least two blocks recorded, do nothing:
+        _ ->
+            return ()
+
+      where
+        time = Log.toTimestamp trObj
+        host = Log.toHostname trObj
+        withPeer f =
+          case getPeerFromTraceObject trObj of
+            Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
+            Right p -> f p
 
     debugTraceBlockData nm es =
       do
