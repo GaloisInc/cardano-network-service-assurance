@@ -69,31 +69,38 @@ data AnalysisArgs = AnalysisArgs
   { aaRegistry :: PR.Registry             -- ^ prometheus registry
   , aaTraceDP  :: Trace IO DataPoint      -- ^ toplevel datapoint trace
   , aaDebugTr  :: OrigCT.Tracer IO String -- ^ cnsa debugging tracer
+  -- TODO: see Improvement 3. below, replace stdout with this:
+  -- , aaLogTr    :: OrigCT.Tracer IO String -- ^ the log for this analysis
+  -- ?
   }
 
 -- | Analysis - capture a 'generic' analysis that receives traceobjects
 --              and updates datapoints, logs ..., and serves prometheus
 --              data.
 --
--- Future / FIXMEs:
---  - use/implement aTraceNames
+-- FIXME[F2]: Improvements
+--  1. use/implement aTraceNames
 --      - use code from updated cardano-tracer to filter and combine.
---  - here or _: build in code that does "overflowing" datapoints
---  - stop writing to stdout, but ...
+--  2. here or _: build in code that does "overflowing" datapoints
+--  3. stop writing to stdout, but ...
 --    - each analysis has own file
 --    - each analysis has own prefix in one logfile/logsystem?
 --    - debugTracing (aaDebugTr) vs stdout vs _: get all in order
---  - datapoint 'abstractions/improvements
+--  4. datapoint 'abstractions/improvements
 --     - rather than adhoc Log.MetaTrace, can you ...
 --       - enumerate datapoint types & names in Analysis?
 --       - ...?
---  - other conveniences
+--  5. other conveniences
 --    - turn [scalar] datapoints [easily/automatically] into prometheus data
 --    - ?
+--  6. add database hooks, e.g., a new field below:
+--      aDataBaseHook       :: DBObject -> IO ()
+
 data Analysis = forall state. Analysis
   { aName               :: String
   , aTraceNames         :: Set [String] -- FIXME: String?
                                         -- FIXME: use.
+                                        -- matches Log.toNamespace argument.
   , aInitialize         :: AnalysisArgs -> IO (Possibly state)
   , aProcessTraceObject :: AnalysisArgs
                         -> state
@@ -201,6 +208,10 @@ blockStatusAnalysis =
 
 
 type BlockState = Map Hash BlockData
+  -- FIXME[F2]: See Marcin's review comments re Hash
+  -- FIXME[F1]: add the address of the sample node we received from!!
+  --   BTW, another useful view might be
+  --     Map SlotNo (Map Hash [(Addr,BlockData)])
 
 -- If we get any of the 'other' messages before we see the downloaded header,
 -- we print warnings and ignore the log message.
