@@ -10,7 +10,7 @@
         
   * [ ] Update the code to address Marcin's code review (see
     2023-08-11-cardano-node-service-assurance-review.md)
-    - [ ] Implement the straightforward code improvements.
+    - [x] Implement the straightforward code improvements.
     - [ ] Capture any undone suggestions in the following sections.
     
   * [ ] Add InfluxDB database backend (Sam)
