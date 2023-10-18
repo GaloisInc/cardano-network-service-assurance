@@ -82,11 +82,11 @@ data AnalysisArgs = AnalysisArgs
 --  - stop writing to stdout, but ...
 --    - each analysis has own file
 --    - each analysis has own prefix in one logfile/logsystem?
+--    - debugTracing (aaDebugTr) vs stdout vs _: get all in order
 --  - datapoint 'abstractions/improvements
 --     - rather than adhoc Log.MetaTrace, can you ...
 --       - enumerate datapoint types & names in Analysis?
 --       - ...?
---  - debugTracing vs stdout vs _: get all in order
 --  - other conveniences
 --    - turn [scalar] datapoints [easily/automatically] into prometheus data
 --    - ?
@@ -120,11 +120,11 @@ initAnalysis :: AnalysisArgs
              -> IO (Log.TraceObject -> LO.LOBody -> IO ())
 initAnalysis args Analysis{aInitialize,aName,aProcessTraceObject} =
   do
-  ms <- aInitialize args
-  putStrLn $ "Initializing analysis '" ++ aName ++ "'"
-  case ms of
-    Left ss -> error $ unlines ("Failure:" : ss)
-    Right s -> return $ aProcessTraceObject args s
+    ms <- aInitialize args
+    putStrLn $ "Initializing analysis '" ++ aName ++ "'"
+    case ms of
+      Left ss -> error $ unlines ("Failure:" : ss)
+      Right s -> return $ aProcessTraceObject args s
 
 
 ------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ mkCnsaSinkAnalyses traceDP debugTr =
   as' <- mapM (initAnalysis args) analyses
   let sendTraceLogObjectToAnalyses o b = mapM_ (\p-> p o b) as'
     -- FIXME[E2]: use the aTraceNames Set to make more efficient.
-  
+
   -- Return code that delegates/distributes to all analyses:
   return
     ( -- handle TraceObject:
@@ -183,7 +183,7 @@ countTraceLogsAnalysis =
         PR.registerCounter "count_of_tracelogs" mempty (aaRegistry args)
       return (Right metric_traceCtr)
 
-    pto _ metric_traceCtr _ _ =
+    pto _ metric_traceCtr _trobj _parsedlog =
       PC.inc metric_traceCtr
 
 
@@ -255,12 +255,12 @@ initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
   where
     buckets = [0.1,0.2..2.0]
 
-processBlockStatusAnalysis 
+processBlockStatusAnalysis
   :: AnalysisArgs
   -> BlockAnalysisState
   -> Log.TraceObject -> LO.LOBody -> IO ()
 processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
-  processTraceObject 
+  processTraceObject
 
   where
     blockStateRef = asBlockStateRef state
@@ -499,4 +499,3 @@ errorMsg = genericMsg "Error: "
 genericMsg :: String -> [String] -> IO ()
 genericMsg _  []     = return ()
 genericMsg tg (s:ss) = mapM_ putStrLn $ (tg++s) : map ("  "++) ss
-
