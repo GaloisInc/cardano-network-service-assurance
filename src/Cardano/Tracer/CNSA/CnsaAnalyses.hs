@@ -21,6 +21,8 @@ import           Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict(Map)
 import           Data.Ord (Down(..))
+import qualified Data.Set as Set
+import           Data.Text (Text)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
 import           GHC.Generics
 import           Network.HostName (HostName)
@@ -63,8 +65,6 @@ import           Cardano.Utils.SlotTimes
 ------------------------------------------------------------------------------
 -- Types
 
-type Set a = [a] -- FIXME: get rid of.
-
 data AnalysisArgs = AnalysisArgs
   { aaRegistry :: PR.Registry             -- ^ prometheus registry
   , aaTraceDP  :: Trace IO DataPoint      -- ^ toplevel datapoint trace
@@ -96,11 +96,12 @@ data AnalysisArgs = AnalysisArgs
 --  6. add database hooks, e.g., a new field below:
 --      aDataBaseHook       :: DBObject -> IO ()
 
+-- | the log name space, matches Log.toNamespace field.
+type Namespace' = [Text]  --
+
 data Analysis = forall state. Analysis
   { aName               :: String
-  , aTraceNames         :: Set [String] -- FIXME: String?
-                                        -- FIXME: use.
-                                        -- matches Log.toNamespace argument.
+  , aTraceNames         :: Set.Set Namespace'
   , aInitialize         :: AnalysisArgs -> IO (Possibly state)
   , aProcessTraceObject :: AnalysisArgs
                         -> state
@@ -144,7 +145,10 @@ mkCnsaSinkAnalyses :: Trace IO DataPoint
 mkCnsaSinkAnalyses traceDP debugTr =
   do
   registry <- PR.new
-  let args = AnalysisArgs registry traceDP debugTr
+  let args = AnalysisArgs{aaRegistry= registry
+                         ,aaTraceDP = traceDP
+                         ,aaDebugTr = debugTr
+                         }
 
   -- Consolidate all analyses:
   as' <- mapM (initAnalysis args) analyses
@@ -180,7 +184,7 @@ mkCnsaSinkAnalyses traceDP debugTr =
 countTraceLogsAnalysis :: Analysis
 countTraceLogsAnalysis =
   Analysis{ aName = "count trace logs"
-          , aTraceNames = []
+          , aTraceNames = Set.empty
           , aInitialize = initialize
           , aProcessTraceObject = pto
           }
@@ -201,7 +205,7 @@ countTraceLogsAnalysis =
 blockStatusAnalysis :: Analysis
 blockStatusAnalysis =
   Analysis { aName=               "Block Status"
-           , aTraceNames=         []
+           , aTraceNames=         Set.empty
            , aInitialize=         initializeBlockStatusAnalysis
            , aProcessTraceObject= processBlockStatusAnalysis
            }
