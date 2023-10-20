@@ -16,11 +16,7 @@ where
 -- base:
 import           Control.Monad
 import           Data.Functor.Contravariant
-import           Data.IORef
-import           Data.List (sortOn, isPrefixOf)
-import qualified Data.Map.Strict as Map
-import           Data.Map.Strict(Map)
-import           Data.Ord (Down(..))
+import           Data.List (isPrefixOf)
 import           Data.Set (Set)
 import           Data.Text (Text)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
@@ -41,7 +37,6 @@ import           Data.Maybe.Strict
 import           Cardano.Logging.Trace
 import           Cardano.Logging.Tracer.DataPoint
 import qualified Cardano.Logging.Types as Log
-import           Cardano.Slotting.Block
 import           Cardano.Slotting.Slot
 import           Cardano.Tracer.MetaTrace -- hiding (traceWith)
 import           Trace.Forward.Utils.DataPoint
@@ -58,7 +53,9 @@ import           System.Metrics.Prometheus.Http.Scrape         as PS
 import qualified System.Metrics.Prometheus.Metric.Histogram    as PH
 
 -- local to this pkg:
+import           Cardano.Tracer.CNSA.BlockState
 import           Cardano.Tracer.CNSA.ParseLogs
+import           Cardano.Utils.Log
 import           Cardano.Utils.SlotTimes
 
 
@@ -249,50 +246,24 @@ blockStatusAnalysis =
            , aProcessTraceObject= processBlockStatusAnalysis
            }
 
-
-type BlockState = Map Hash BlockData
-  -- FIXME[F2]: See Marcin's review comments re Hash
-  -- FIXME[F1]: add the address of the sample node we received from!!
-  --   BTW, another useful view might be
-  --     Map SlotNo (Map Hash [(Addr,BlockData)])
-
 -- If we get any of the 'other' messages before we see the downloaded header,
 -- we print warnings and ignore the log message.
 
 -- type Delay = Int      -- MSecs -- TODO
 
-data BlockData =
-  BlockData { bl_blockNo             :: BlockNo
-            , bl_slot                :: SlotNo
-            , bl_downloadedHeader    :: [(Peer,UTCTime)]
-            , bl_sendFetchRequest    :: [(Peer,UTCTime)]
-            , bl_completedBlockFetch :: [(Peer,UTCTime)]
-              -- KK: CompletedBlockFetch*, this trace is in the wrong
-              -- place. We need a trace for when the block has been
-              -- downloaded, see #4226.
-            , bl_addedToCurrentChain :: Maybe UTCTime
-            , bl_size                :: Maybe Int
-            }
-  deriving (Eq,Ord,Show,Generic)
-
-blockStateMax :: Int
-blockStateMax = 5
-  -- FIXME: make configurable.
-
 data BlockAnalysisState = BlockAnalysisState
-  { asBlockStateRef   :: IORef BlockState,
+  { asBlockStateHdl   :: BlockStateHdl,
     asBlockStateTrace :: Trace IO BlockState,
     asTopSlotGauge    :: PG.Gauge,
     asPenultSlotGauge :: PG.Gauge,
     asPropDelaysHist  :: PH.Histogram
   }
 
-
 initializeBlockStatusAnalysis
   :: AnalysisArgs -> IO (Possibly BlockAnalysisState)
 initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
   do
-    blockStateRef <- newIORef mempty
+    blockStateHdl   <- newBlockStateHdl
     blockStateTrace <- contramap BlockState' <$> mkDataPointTracer traceDP
     topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
     penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
@@ -300,7 +271,7 @@ initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
                          mempty buckets registry
     pure $ Right $
       BlockAnalysisState
-        { asBlockStateRef   = blockStateRef,
+        { asBlockStateHdl   = blockStateHdl,
           asBlockStateTrace = blockStateTrace,
           asTopSlotGauge    = topSlotGauge,
           asPenultSlotGauge = penultSlotGauge,
@@ -317,57 +288,42 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
   processTraceObject
 
   where
-    blockStateRef = asBlockStateRef state
+    blockStateHdl = asBlockStateHdl state
 
-    updateBlockData = modifyIORef' blockStateRef
-    updateBlockDataByKey k f =
-        modifyIORefMaybe blockStateRef
-          (\m-> case adjustIfMember f k m of
-                  Just m' -> return (Just m')
-                  Nothing ->
-                    do
-                    warnMsg
-                      ["ignoring Log, hash not in current block data: "
-                        ++ show k]
-                    return Nothing
-          )
+    updateBS = updateBlockState blockStateHdl
+    updateBSByKey = updateBlockStateByKey blockStateHdl
 
     processTraceObject trObj logObj = do
-
-      -- Update 'blockStateRef :: IORef BlockState' :
       case logObj of
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
-              updateBlockData (addSeenHeader slotno blockno hash peer time)
+              updateBS (addSeenHeader slotno blockno hash peer time)
 
         LO.LOBlockFetchClientRequested hash len ->
             withPeer $ \peer->
-              updateBlockDataByKey hash
+              updateBSByKey hash
                 (addFetchRequest hash len peer time)
 
         LO.LOBlockFetchClientCompletedFetch hash ->
             withPeer $ \peer->
-              updateBlockDataByKey hash
+              updateBSByKey hash
                 (addFetchCompleted hash peer time)
 
         LO.LOBlockAddedToCurrentChain hash msize len ->
-            updateBlockDataByKey hash
+            updateBSByKey hash
               (addAddedToCurrent hash msize len host time)
 
-        _ ->
-            return ()
+        _ -> return ()
 
       -- debugTracing:
-      raw0 <- readIORef blockStateRef
-      debugTraceBlockData "blockState[pre]" (getSortedBySlots raw0)
+      sorted <- sortBySlot <$> readBlockStateHdl blockStateHdl
+      debugTraceBlockData "blockState[pre]" sorted
 
-      -- update 'blockStateRef', removing overflow:
-      overflowList <- atomicModifyIORef'
-                        blockStateRef
-                        (splitMapOn blockStateMax bl_slot)
+      -- update 'blockStateHdl', removing overflow:
+      overflowList <- pruneOverflow blockStateHdl
 
       -- update blockState Datapoint:
-      readIORef blockStateRef >>= traceWith (asBlockStateTrace state)
+      readBlockStateHdl blockStateHdl >>= traceWith (asBlockStateTrace state)
 
       -- Process 'overflowList':
       if null overflowList then
@@ -382,9 +338,9 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
         hFlush stdout
 
       -- Update Metrics:
-      raw1 <- getSortedBySlots <$> readIORef blockStateRef
-      debugTraceBlockData "blockState[post]" raw1
-      case map snd raw1 of
+      sorted' <- sortBySlot <$> readBlockStateHdl blockStateHdl
+      debugTraceBlockData "blockState[post]" sorted'
+      case map snd sorted' of
         b0:b1:_ ->
             do
             let
@@ -433,34 +389,6 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
     cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
 
-    getSortedBySlots m = sortOn (Down . bl_slot . snd) (Map.toList m)
-
-
-defaultBlockData :: BlockNo -> SlotNo -> BlockData
-defaultBlockData b s =
-  BlockData{ bl_blockNo            = b
-           , bl_slot               = s
-           , bl_downloadedHeader   = []
-           , bl_sendFetchRequest   = []
-           , bl_completedBlockFetch= []
-           , bl_addedToCurrentChain= Nothing
-           , bl_size               = Nothing
-           }
-
-addSeenHeader :: SlotNo
-              -> BlockNo
-              -> Hash
-              -> Peer
-              -> UTCTime
-              -> BlockState -> BlockState
-addSeenHeader slot block hash peer time = Map.alter f hash
-  where
-    update bd = bd { bl_downloadedHeader = bl_downloadedHeader bd ++ [(peer,time)] }
-    f blockDataM =
-      case blockDataM of
-        Nothing -> Just (update (defaultBlockData block slot))
-        Just bd -> Just (update bd)
-
 addFetchRequest :: Hash
                 -> Int
                 -> Peer
@@ -495,8 +423,6 @@ newtype BlockState' = BlockState' BlockState
 
 deriving instance ToJSON BlockState'
 
-deriving instance ToJSON BlockData
-
 instance Log.MetaTrace BlockState'
   where
   namespaceFor _  = Log.Namespace [] ["CNSA","BlockState"]
@@ -505,51 +431,3 @@ instance Log.MetaTrace BlockState'
   allNamespaces   = [Log.namespaceFor (undefined :: BlockState')]
 
 
----- Map utilities -------------------------------------------------
-
--- | splitMapOn n f m -
---     reduce size of Map m to n elements, use f to order element values.
-
-splitMapOn :: (Ord k, Ord b)
-           => Int -> (a -> b) -> Map k a -> (Map k a, [(k,a)])
-splitMapOn n f m0 = (Map.fromList keepers, overflow)
-  where
-  (keepers,overflow) = splitAt n $ sortOn (Down . f . snd) $ Map.toList m0
-
--- | Adjust the value by the function if the key exists, or produce `Nothing`
--- otherwise.
---
--- >>> adjustIfMember (+ 1) "one" (Map.singleton "two" 2)
--- Nothing
---
--- >>> adjustIfMember (+ 1) "one" (Map.singleton "one" 1)
--- Just (Map.fromList [("one", 2)])
-adjustIfMember :: Ord k => (a -> a) -> k -> Map k a -> Maybe (Map k a)
-adjustIfMember f = Map.alterF (fmap (Just . f))
-
-
----- IORef utilities -------------------------------------------------
-
-modifyIORefMaybe :: IORef a -> (a -> IO (Maybe a)) -> IO ()
-modifyIORefMaybe ref f =
-  do
-  a <- readIORef ref
-  ma <- f a
-  case ma of
-    Just a' -> writeIORef ref a'
-    Nothing -> return ()
-
-
----- Etc utilities -------------------------------------------------
-
-warnMsg :: [String] -> IO ()
-warnMsg = genericMsg "Warning: "
-
-errorMsg :: [String] -> IO ()
-errorMsg = genericMsg "Error: "
-
-
--- FIXME: make more configurable/?
-genericMsg :: String -> [String] -> IO ()
-genericMsg _  []     = return ()
-genericMsg tg (s:ss) = mapM_ putStrLn $ (tg++s) : map ("  "++) ss
