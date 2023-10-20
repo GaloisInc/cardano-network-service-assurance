@@ -17,11 +17,11 @@ where
 import           Control.Monad
 import           Data.Functor.Contravariant
 import           Data.IORef
-import           Data.List (sortOn)
+import           Data.List (sortOn, isPrefixOf)
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict(Map)
 import           Data.Ord (Down(..))
-import qualified Data.Set as Set
+import           Data.Set (Set)
 import           Data.Text (Text)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
 import           GHC.Generics
@@ -74,6 +74,45 @@ data AnalysisArgs = AnalysisArgs
   -- ?
   }
 
+--------------------------------------------------------------------------------
+-- Namespaces
+--
+-- Some of this is duplicative of code in `Cardano.Tracer.Handlers.ReForwarder`,
+-- but not entirely, since that code operates on lists. We should porobably
+-- upstream this version of the abstraction.
+
+-- | The log name space, corresponds to Log.toNamespace field.
+type Namespace = [Text]  --
+
+-- | A filter for namespaces - query it with `nsFilterAllows`.
+--
+-- XXX: want Semigroup, Monoid, IsList, perhaps `insert`
+data NamespaceFilter
+  = NoFilter
+  | Filter (Set Namespace)
+
+-- | Does the `NamespaceFilter` allow the `Namespace`?
+nsFilterAllows :: NamespaceFilter -> Namespace -> Bool
+nsFilterAllows nsf containee =
+  case nsf of
+    NoFilter -> True
+    Filter containers -> any (`nsContains` containee) containers
+
+-- | Does `container` contain `containee`?
+--
+-- >>> ["Foo", "Bar"] `nsContains` ["Foo", "Bar", "Baz"]
+-- True
+--
+-- >>> ["Foo", "Bar"] `nsContains` ["Foo", "Bar"]
+-- True
+--
+-- >>> ["Foo", "Bar"] `nsContains` ["Foo"]
+-- False
+nsContains :: Namespace -> Namespace -> Bool
+nsContains container containee = container `isPrefixOf` containee
+
+--------------------------------------------------------------------------------
+
 -- | Analysis - capture a 'generic' analysis that receives traceobjects
 --              and updates datapoints, logs ..., and serves prometheus
 --              data.
@@ -81,6 +120,7 @@ data AnalysisArgs = AnalysisArgs
 -- FIXME[F2]: Improvements
 --  1. use/implement aTraceNames
 --      - use code from updated cardano-tracer to filter and combine.
+--     SamC: done, sorta, see caveat in Namespaces section above
 --  2. here or _: build in code that does "overflowing" datapoints
 --  3. stop writing to stdout, but ...
 --    - each analysis has own file
@@ -96,12 +136,9 @@ data AnalysisArgs = AnalysisArgs
 --  6. add database hooks, e.g., a new field below:
 --      aDataBaseHook       :: DBObject -> IO ()
 
--- | the log name space, matches Log.toNamespace field.
-type Namespace' = [Text]  --
-
 data Analysis = forall state. Analysis
   { aName               :: String
-  , aTraceNames         :: Set.Set Namespace'
+  , aTraceNamespaces    :: NamespaceFilter
   , aInitialize         :: AnalysisArgs -> IO (Possibly state)
   , aProcessTraceObject :: AnalysisArgs
                         -> state
@@ -126,14 +163,16 @@ analyses = [ countTraceLogsAnalysis
 initAnalysis :: AnalysisArgs
              -> Analysis
              -> IO (Log.TraceObject -> LO.LOBody -> IO ())
-initAnalysis args Analysis{aInitialize,aName,aProcessTraceObject} =
+initAnalysis args Analysis{aInitialize,aName,aTraceNamespaces,aProcessTraceObject} =
   do
     ms <- aInitialize args
     putStrLn $ "Initializing analysis '" ++ aName ++ "'"
     case ms of
       Left ss -> error $ unlines ("Failure:" : ss)
-      Right s -> return $ aProcessTraceObject args s
-
+      Right s -> return $
+        \traceObj logBody ->
+          when (aTraceNamespaces `nsFilterAllows` Log.toNamespace traceObj) $
+            aProcessTraceObject args s traceObj logBody
 
 ------------------------------------------------------------------------------
 -- our toplevel
@@ -184,7 +223,7 @@ mkCnsaSinkAnalyses traceDP debugTr =
 countTraceLogsAnalysis :: Analysis
 countTraceLogsAnalysis =
   Analysis{ aName = "count trace logs"
-          , aTraceNames = Set.empty
+          , aTraceNamespaces = NoFilter
           , aInitialize = initialize
           , aProcessTraceObject = pto
           }
@@ -205,7 +244,7 @@ countTraceLogsAnalysis =
 blockStatusAnalysis :: Analysis
 blockStatusAnalysis =
   Analysis { aName=               "Block Status"
-           , aTraceNames=         Set.empty
+           , aTraceNamespaces=    NoFilter
            , aInitialize=         initializeBlockStatusAnalysis
            , aProcessTraceObject= processBlockStatusAnalysis
            }
