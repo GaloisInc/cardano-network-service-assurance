@@ -33,7 +33,7 @@ ecosystem, this project could benefit from them.
 type BlockState = Map Hash BlockData
 ```
 
-This assumes that there are no `Hash` collications on the chain.  I'd expect
+This assumes that there are no `Hash` collisions on the chain.  I'd expect
 that eventually there will be? If if we use `Point` instead (basically a tuple
 of `SlotNo` and `Hash`), we wouldn't have that problem.
 
