@@ -8,6 +8,10 @@
 
 module Cardano.Tracer.CNSA.BlockState
   ( BlockData (..),
+    BlockProps (..),
+    BlockTiming (..),
+    updateBlockTiming,
+    updateBlockProps,
     BlockState,
     sortBySlot,
     addSeenHeader,
@@ -51,30 +55,61 @@ import GHC.Generics (Generic)
 -- BlockData
 
 data BlockData = BlockData
-  { bl_blockNo :: BlockNo,
-    bl_slot :: SlotNo,
-    bl_downloadedHeader :: [(Peer, UTCTime)],
-    bl_sendFetchRequest :: [(Peer, UTCTime)],
-    bl_completedBlockFetch :: [(Peer, UTCTime)],
-    -- KK: CompletedBlockFetch*, this trace is in the wrong
-    -- place. We need a trace for when the block has been
-    -- downloaded, see #4226.
-    bl_addedToCurrentChain :: Maybe UTCTime,
-    bl_size :: Maybe Int
+  { bd_props  :: BlockProps,  -- ^ constants for a given block.
+    bd_timing :: BlockTiming  -- ^ timing info
   }
   deriving (Eq, Ord, Show, Generic, ToJSON)
 
+-- | data intrinsic to a block.
+data BlockProps = BlockProps
+  { bl_blockNo :: BlockNo,
+    bl_slot    :: SlotNo,
+    bl_size    :: Maybe Int
+  }
+  deriving (Eq, Ord, Show, Generic, ToJSON)
+
+-- | block timing data with respect to a sampling node [and its peers]:
+data BlockTiming = BlockTiming
+  { bl_downloadedHeader    :: [(Peer, UTCTime)],
+    bl_sendFetchRequest    :: [(Peer, UTCTime)],
+    bl_completedBlockFetch :: [(Peer, UTCTime)],
+      -- KK: CompletedBlockFetch*, this trace is in the wrong
+      -- place. We need a trace for when the block has been
+      -- downloaded, see #4226.
+    bl_addedToCurrentChain :: Maybe UTCTime
+  }
+  deriving (Eq, Ord, Show, Generic, ToJSON)
+
+-- FIXME: rename fields for consistency.
+
+updateBlockTiming :: (BlockTiming -> BlockTiming) -> BlockData -> BlockData
+updateBlockTiming upd b = b{bd_timing= upd(bd_timing b)}
+
+updateBlockProps :: (BlockProps -> BlockProps) -> BlockData -> BlockData
+updateBlockProps upd b = b{bd_props= upd(bd_props b)}
+
 defaultBlockData :: BlockNo -> SlotNo -> BlockData
 defaultBlockData b s =
-  BlockData
-    { bl_blockNo = b,
-      bl_slot = s,
-      bl_downloadedHeader = [],
-      bl_sendFetchRequest = [],
-      bl_completedBlockFetch = [],
-      bl_addedToCurrentChain = Nothing,
-      bl_size = Nothing
-    }
+  BlockData{ bd_props = defaultBlockProps b s,
+             bd_timing= defaultBlockTiming
+           }
+
+defaultBlockTiming :: BlockTiming
+defaultBlockTiming =
+  BlockTiming {
+    bl_downloadedHeader = [],
+    bl_sendFetchRequest = [],
+    bl_completedBlockFetch = [],
+    bl_addedToCurrentChain = Nothing
+  }
+
+defaultBlockProps :: BlockNo -> SlotNo -> BlockProps
+defaultBlockProps b s =
+  BlockProps {
+    bl_blockNo = b,
+    bl_slot    = s,
+    bl_size   = Nothing
+  }
 
 --------------------------------------------------------------------------------
 -- BlockState
@@ -89,7 +124,7 @@ newtype BlockState = BlockState (Map Hash BlockData)
   deriving newtype (Monoid, Semigroup)
   deriving anyclass (ToJSON)
 
--- FIXME[F2]: See Marcin's review comments re Hash
+-- FIXME[F2]: See Marcin's review comments re Hash, add comments & justifications
 -- FIXME[F1]: add the address of the sample node we received from!!
 
 -- | the maximum size of the Map in BlockState
@@ -98,12 +133,16 @@ blockStateMax = 5
   -- FIXME: make this configurable.
 
 sortBySlot :: BlockState -> [(Hash, BlockData)]
-sortBySlot (BlockState m) = sortOn (Down . bl_slot . snd) (Map.toList m)
+sortBySlot (BlockState m) =
+  sortOn (Down . bl_slot . bd_props . snd) (Map.toList m)
 
 addSeenHeader :: SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
-addSeenHeader slot block hash peer time (BlockState m) = BlockState (Map.alter f hash m)
+addSeenHeader slot block hash peer time (BlockState m) =
+  BlockState (Map.alter f hash m)
   where
-    update bd = bd {bl_downloadedHeader = bl_downloadedHeader bd ++ [(peer, time)]}
+    update =
+      updateBlockTiming
+        (\bt->bt{bl_downloadedHeader = bl_downloadedHeader bt ++ [(peer, time)]})
     f blockDataM =
       case blockDataM of
         Nothing -> Just (update (defaultBlockData block slot))
@@ -139,8 +178,9 @@ pruneOverflow :: BlockStateHdl -> IO [(Hash, BlockData)]
 pruneOverflow (BlockStateHdl ref) = atomicModifyIORef' ref prune
   where
     prune (BlockState m) =
-      let (keepers, overflow) = splitMapOn blockStateMax bl_slot m
-       in (BlockState keepers, overflow)
+      let (keepers, overflow) =
+             splitMapOn blockStateMax (bl_slot . bd_props) m
+      in (BlockState keepers, overflow)
 
 ---- IORef utilities -------------------------------------------------
 
