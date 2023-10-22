@@ -344,8 +344,8 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
         b0:b1:_ ->
             do
             let
-              SlotNo slot0 = bl_slot $ bd_props b0
-              SlotNo slot1 = bl_slot $ bd_props b1
+              SlotNo slot0 = bp_slot $ bd_props b0
+              SlotNo slot1 = bp_slot $ bd_props b1
 
             -- update slot metrics:
             PG.set (fromIntegral slot0) (asTopSlotGauge state)
@@ -358,7 +358,7 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
               delays  = map
                           (\(p,t)->
                               (p, diffUTCTime t (slotStart (SlotNo slot1))))
-                          (bl_downloadedHeader (bd_timing b1))
+                          (bt_downloadedHeader (bd_timing b1))
             OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
             OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
             OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
@@ -396,13 +396,13 @@ addFetchRequest :: Hash
                 -> BlockData -> BlockData
 addFetchRequest _hash _len peer time =
   updateBlockTiming $
-   \bt->bt{bl_sendFetchRequest= (peer,time) : bl_sendFetchRequest bt}
+   \bt->bt{bt_sendFetchRequest= (peer,time) : bt_sendFetchRequest bt}
   -- what is _len?
 
 addFetchCompleted :: Hash -> Peer -> UTCTime -> BlockData -> BlockData
 addFetchCompleted _hash peer time =
   updateBlockTiming $
-    \bt->bt{bl_completedBlockFetch= (peer,time) : bl_completedBlockFetch bt}
+    \bt->bt{bt_completedBlockFetch= (peer,time) : bt_completedBlockFetch bt}
 
 addAddedToCurrent
   :: Hash
@@ -411,8 +411,8 @@ addAddedToCurrent
   -> UTCTime
   -> BlockData -> BlockData
 addAddedToCurrent _hash msize _len time =
-    updateBlockTiming (\bt->bt{ bl_addedToCurrentChain = Just time})
-  . updateBlockProps  (\bp->bp{ bl_size = strictMaybeToMaybe msize})
+    updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
+  . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
 
 

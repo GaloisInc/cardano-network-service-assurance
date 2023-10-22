@@ -62,25 +62,23 @@ data BlockData = BlockData
 
 -- | data intrinsic to a block.
 data BlockProps = BlockProps
-  { bl_blockNo :: BlockNo,
-    bl_slot    :: SlotNo,
-    bl_size    :: Maybe Int
+  { bp_blockNo :: BlockNo,
+    bp_slot    :: SlotNo,
+    bp_size    :: Maybe Int
   }
   deriving (Eq, Ord, Show, Generic, ToJSON)
 
 -- | block timing data with respect to a sampling node [and its peers]:
 data BlockTiming = BlockTiming
-  { bl_downloadedHeader    :: [(Peer, UTCTime)],
-    bl_sendFetchRequest    :: [(Peer, UTCTime)],
-    bl_completedBlockFetch :: [(Peer, UTCTime)],
+  { bt_downloadedHeader    :: [(Peer, UTCTime)],
+    bt_sendFetchRequest    :: [(Peer, UTCTime)],
+    bt_completedBlockFetch :: [(Peer, UTCTime)],
       -- KK: CompletedBlockFetch*, this trace is in the wrong
       -- place. We need a trace for when the block has been
       -- downloaded, see #4226.
-    bl_addedToCurrentChain :: Maybe UTCTime
+    bt_addedToCurrentChain :: Maybe UTCTime
   }
   deriving (Eq, Ord, Show, Generic, ToJSON)
-
--- FIXME: rename fields for consistency.
 
 updateBlockTiming :: (BlockTiming -> BlockTiming) -> BlockData -> BlockData
 updateBlockTiming upd b = b{bd_timing= upd(bd_timing b)}
@@ -97,18 +95,18 @@ defaultBlockData b s =
 defaultBlockTiming :: BlockTiming
 defaultBlockTiming =
   BlockTiming {
-    bl_downloadedHeader = [],
-    bl_sendFetchRequest = [],
-    bl_completedBlockFetch = [],
-    bl_addedToCurrentChain = Nothing
+    bt_downloadedHeader = [],
+    bt_sendFetchRequest = [],
+    bt_completedBlockFetch = [],
+    bt_addedToCurrentChain = Nothing
   }
 
 defaultBlockProps :: BlockNo -> SlotNo -> BlockProps
 defaultBlockProps b s =
   BlockProps {
-    bl_blockNo = b,
-    bl_slot    = s,
-    bl_size   = Nothing
+    bp_blockNo = b,
+    bp_slot    = s,
+    bp_size   = Nothing
   }
 
 --------------------------------------------------------------------------------
@@ -134,7 +132,7 @@ blockStateMax = 5
 
 sortBySlot :: BlockState -> [(Hash, BlockData)]
 sortBySlot (BlockState m) =
-  sortOn (Down . bl_slot . bd_props . snd) (Map.toList m)
+  sortOn (Down . bp_slot . bd_props . snd) (Map.toList m)
 
 addSeenHeader :: SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
 addSeenHeader slot block hash peer time (BlockState m) =
@@ -142,7 +140,7 @@ addSeenHeader slot block hash peer time (BlockState m) =
   where
     update =
       updateBlockTiming
-        (\bt->bt{bl_downloadedHeader = bl_downloadedHeader bt ++ [(peer, time)]})
+        (\bt->bt{bt_downloadedHeader = bt_downloadedHeader bt ++ [(peer, time)]})
     f blockDataM =
       case blockDataM of
         Nothing -> Just (update (defaultBlockData block slot))
@@ -179,7 +177,7 @@ pruneOverflow (BlockStateHdl ref) = atomicModifyIORef' ref prune
   where
     prune (BlockState m) =
       let (keepers, overflow) =
-             splitMapOn blockStateMax (bl_slot . bd_props) m
+             splitMapOn blockStateMax (bp_slot . bd_props) m
       in (BlockState keepers, overflow)
 
 ---- IORef utilities -------------------------------------------------
