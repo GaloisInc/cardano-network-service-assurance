@@ -311,7 +311,7 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
         LO.LOBlockAddedToCurrentChain hash msize len ->
             updateBSByKey hash
-              (addAddedToCurrent hash msize len host time)
+              (addAddedToCurrent hash msize len time)
 
         _ -> return ()
 
@@ -406,10 +406,9 @@ addAddedToCurrent
   :: Hash
   -> StrictMaybe Int
   -> Int
-  -> HostName
   -> UTCTime
   -> BlockData -> BlockData
-addAddedToCurrent _hash msize _len _host time d =
+addAddedToCurrent _hash msize _len time d =
   d{ bl_addedToCurrentChain = Just time
    , bl_size                = strictMaybeToMaybe msize
    }
