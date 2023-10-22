@@ -80,6 +80,10 @@ defaultBlockData b s =
 -- BlockState
 
 -- | A collection of `BlockData` values, keyed by `Hash`es
+--
+-- Invariant:
+--   size of the Map <= blockStateMax
+
 newtype BlockState = BlockState (Map Hash BlockData)
   deriving stock (Eq, Generic, Ord, Show)
   deriving newtype (Monoid, Semigroup)
@@ -87,12 +91,11 @@ newtype BlockState = BlockState (Map Hash BlockData)
 
 -- FIXME[F2]: See Marcin's review comments re Hash
 -- FIXME[F1]: add the address of the sample node we received from!!
---   BTW, another useful view might be
---     Map SlotNo (Map Hash [(Addr,BlockData)])
 
--- FIXME: make configurable.
+-- | the maximum size of the Map in BlockState
 blockStateMax :: Int
 blockStateMax = 5
+  -- FIXME: make this configurable.
 
 sortBySlot :: BlockState -> [(Hash, BlockData)]
 sortBySlot (BlockState m) = sortOn (Down . bl_slot . snd) (Map.toList m)
@@ -129,7 +132,7 @@ updateBlockStateByKey (BlockStateHdl ref) k f = modifyIORefMaybe ref update
         Just m' -> pure (Just (BlockState m'))
         Nothing ->
           do
-            warnMsg ["ignoring Log, hash not in current block data: " ++ show k]
+            warnMsg ["ignoring TraceObj: can't update unknown hash (either tool old or error): " ++ show k]
             pure Nothing
 
 pruneOverflow :: BlockStateHdl -> IO [(Hash, BlockData)]
