@@ -18,7 +18,7 @@ module Cardano.Tracer.CNSA.BlockState
     addSeenHeader,
     addFetchRequest,
     addFetchCompleted,
-    addAddedToCurrent,
+    addAddedToCurrentChain,
     BlockStateHdl,
     newBlockStateHdl,
     readBlockStateHdl,
@@ -139,8 +139,8 @@ sortBySlot :: BlockState -> [(Hash, BlockData)]
 sortBySlot (BlockState m) =
   sortOn (Down . bp_slot . bd_props . snd) (Map.toList m)
 
-addSeenHeader :: SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
-addSeenHeader slot block hash peer time (BlockState m) =
+addSeenHeader :: Sampler -> SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
+addSeenHeader _shost slot block hash peer time (BlockState m) =
   BlockState (Map.alter f hash m)
   where
     update =
@@ -156,12 +156,12 @@ addSeenHeader slot block hash peer time (BlockState m) =
         Nothing -> Just (update (defaultBlockData block slot))
         Just bd -> Just (update bd)
 
-addFetchRequest :: Hash
+addFetchRequest :: Sampler
                 -> Int
                 -> Peer
                 -> UTCTime
                 -> BlockData -> BlockData
-addFetchRequest _hash _len peer time =
+addFetchRequest _shost _len peer time =
   updateBlockTiming $
    \bt->bt{bt_sendFetchRequest=
     Map.insertWith
@@ -171,8 +171,8 @@ addFetchRequest _hash _len peer time =
       (bt_sendFetchRequest bt)}
   -- what is _len?
 
-addFetchCompleted :: Hash -> Peer -> UTCTime -> BlockData -> BlockData
-addFetchCompleted _hash peer time =
+addFetchCompleted :: Sampler -> Peer -> UTCTime -> BlockData -> BlockData
+addFetchCompleted _shost peer time =
   updateBlockTiming $
     \bt->bt{bt_completedBlockFetch=
        Map.insertWith
@@ -181,13 +181,13 @@ addFetchCompleted _hash peer time =
       time
       (bt_completedBlockFetch bt)}
 
-addAddedToCurrent
-  :: Hash
+addAddedToCurrentChain
+  :: Sampler
   -> StrictMaybe Int
   -> Int
   -> UTCTime
   -> BlockData -> BlockData
-addAddedToCurrent _hash msize _len time =
+addAddedToCurrentChain shost msize _len time =
     updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
   . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
