@@ -296,21 +296,21 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
       case logObj of
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
-              updateBS (addSeenHeader slotno blockno hash peer time)
+              updateBS (addSeenHeader shost slotno blockno hash peer time)
 
         LO.LOBlockFetchClientRequested hash len ->
             withPeer $ \peer->
               updateBSByKey hash
-                (addFetchRequest hash len peer time)
+                (addFetchRequest shost len peer time)
 
         LO.LOBlockFetchClientCompletedFetch hash ->
             withPeer $ \peer->
               updateBSByKey hash
-                (addFetchCompleted hash peer time)
+                (addFetchCompleted shost peer time)
 
         LO.LOBlockAddedToCurrentChain hash msize len ->
             updateBSByKey hash
-              (addAddedToCurrent hash msize len time)
+              (addAddedToCurrentChain shost msize len time)
 
         _ -> return ()
 
@@ -373,7 +373,7 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
       where
         time = Log.toTimestamp trObj
-        host = Log.toHostname trObj
+        shost = Log.toHostname trObj -- sampler host
         withPeer f =
           case getPeerFromTraceObject trObj of
             Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
@@ -388,28 +388,28 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
     cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
 
-addFetchRequest :: Hash
+addFetchRequest :: Sampler
                 -> Int
                 -> Peer
                 -> UTCTime
                 -> BlockData -> BlockData
-addFetchRequest _hash _len peer time =
+addFetchRequest shost _len peer time =
   updateBlockTiming $
    \bt->bt{bt_sendFetchRequest= (peer,time) : bt_sendFetchRequest bt}
   -- what is _len?
 
-addFetchCompleted :: Hash -> Peer -> UTCTime -> BlockData -> BlockData
-addFetchCompleted _hash peer time =
+addFetchCompleted :: Sampler -> Peer -> UTCTime -> BlockData -> BlockData
+addFetchCompleted shhost peer time =
   updateBlockTiming $
     \bt->bt{bt_completedBlockFetch= (peer,time) : bt_completedBlockFetch bt}
 
-addAddedToCurrent
-  :: Hash
+addAddedToCurrentChain
+  :: Sampler
   -> StrictMaybe Int
   -> Int
   -> UTCTime
   -> BlockData -> BlockData
-addAddedToCurrent _hash msize _len time =
+addAddedToCurrentChain shost msize _len time =
     updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
   . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]

@@ -135,8 +135,8 @@ sortBySlot :: BlockState -> [(Hash, BlockData)]
 sortBySlot (BlockState m) =
   sortOn (Down . bp_slot . bd_props . snd) (Map.toList m)
 
-addSeenHeader :: SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
-addSeenHeader slot block hash peer time (BlockState m) =
+addSeenHeader :: Sampler -> SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
+addSeenHeader shost slot block hash peer time (BlockState m) =
   BlockState (Map.alter f hash m)
   where
     update =
