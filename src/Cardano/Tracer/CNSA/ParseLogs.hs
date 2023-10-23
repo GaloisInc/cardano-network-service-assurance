@@ -15,6 +15,7 @@ module Cardano.Tracer.CNSA.ParseLogs
  , EtcLogBody(..)
  , Addr
  , Peer
+ , Sampler
  )
 where
 
@@ -46,8 +47,10 @@ import           Cardano.Unlog.LogObject
 
 ---- Types ---------------------------------------------------------
 
-type Addr  = String   -- Intepreted as Hostname:SocketNo
-type Peer  = Addr     -- used 'semantically' for just the peer addresses
+type Addr    = String   -- Intepreted as Hostname:SocketNo
+type Peer    = Addr     -- used 'semantically' for just the peer addresses
+type Sampler = Addr -- Addresses which refer to the Sampler nodes
+
 
 data LogBody =
     LB_LOBody LOBody -- capturing everything that locli unparses

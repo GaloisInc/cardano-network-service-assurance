@@ -11,6 +11,7 @@ module Cardano.Tracer.CNSA.BlockState
     BlockProps (..),
     BlockTiming (..),
     updateBlockTiming,
+    Sampler,
     updateBlockProps,
     BlockState,
     sortBySlot,
@@ -33,7 +34,7 @@ Secrets kept:
 import Cardano.Analysis.API.Ground (Hash)
 import Cardano.Slotting.Block (BlockNo)
 import Cardano.Slotting.Slot (SlotNo)
-import Cardano.Tracer.CNSA.ParseLogs (Peer)
+import Cardano.Tracer.CNSA.ParseLogs (Peer,Sampler)
 import Cardano.Utils.Log (warnMsg)
 import Data.Aeson (ToJSON)
 import Data.IORef

@@ -142,8 +142,6 @@ data Analysis = forall state. Analysis
                         -> Log.TraceObject -> LO.LOBody -> IO ()
   }
 
-type Possibly a = Either [String] a  -- FIXME: an existing synonym for?
-
 
 ------------------------------------------------------------------------------
 -- All CNSA Analyses:
@@ -291,6 +289,7 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
     blockStateHdl = asBlockStateHdl state
 
     updateBS = updateBlockState blockStateHdl
+
     updateBSByKey = updateBlockStateByKey blockStateHdl
 
     processTraceObject trObj logObj = do
@@ -414,7 +413,7 @@ addAddedToCurrent _hash msize _len time =
     updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
   . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
-
+  -- why can you ignore _hash?
 
 ---- Boilerplate for BlockState' Datapoint -------------------------
 

@@ -10,3 +10,5 @@ errorMsg = genericMsg "Error: "
 genericMsg :: String -> [String] -> IO ()
 genericMsg _ [] = return ()
 genericMsg tg (s : ss) = mapM_ putStrLn $ (tg ++ s) : map ("  " ++) ss
+
+type Possibly a = Either [String] a  -- FIXME: an existing synonym for?
