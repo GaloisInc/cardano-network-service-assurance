@@ -22,6 +22,7 @@ module Cardano.Tracer.CNSA.BlockState
     updateBlockState,
     updateBlockStateByKey,
     pruneOverflow,
+    unexpectedExisting,
   )
 where
 
@@ -71,9 +72,9 @@ data BlockProps = BlockProps
 
 -- | block timing data with respect to a sampling node [and its peers]:
 data BlockTiming = BlockTiming
-  { bt_downloadedHeader    :: [(Peer, UTCTime)],
-    bt_sendFetchRequest    :: [(Peer, UTCTime)],
-    bt_completedBlockFetch :: [(Peer, UTCTime)],
+  { bt_downloadedHeader    :: Map Peer UTCTime,
+    bt_sendFetchRequest    :: Map Peer UTCTime,
+    bt_completedBlockFetch :: Map Peer UTCTime,
       -- KK: CompletedBlockFetch*, this trace is in the wrong
       -- place. We need a trace for when the block has been
       -- downloaded, see #4226.
@@ -96,9 +97,9 @@ defaultBlockData b s =
 defaultBlockTiming :: BlockTiming
 defaultBlockTiming =
   BlockTiming {
-    bt_downloadedHeader = [],
-    bt_sendFetchRequest = [],
-    bt_completedBlockFetch = [],
+    bt_downloadedHeader = mempty,
+    bt_sendFetchRequest = mempty,
+    bt_completedBlockFetch = mempty,
     bt_addedToCurrentChain = Nothing
   }
 
@@ -141,7 +142,12 @@ addSeenHeader slot block hash peer time (BlockState m) =
   where
     update =
       updateBlockTiming
-        (\bt->bt{bt_downloadedHeader = bt_downloadedHeader bt ++ [(peer, time)]})
+        (\bt->bt{bt_downloadedHeader =
+          Map.insertWith
+            (unexpectedExisting "addSeenHeader: unexpected entry")
+            peer
+            time
+            (bt_downloadedHeader bt)})
     f blockDataM =
       case blockDataM of
         Nothing -> Just (update (defaultBlockData block slot))
@@ -203,6 +209,11 @@ splitMapOn keep order m = (Map.fromList keepers, overflow)
       splitAt keep $
         sortOn (Down . order . snd) $
           Map.toList m
+
+-- | Use with `Map.insertWith` to trigger an error when a value would be updated
+-- on insertion
+unexpectedExisting :: String -> any -> any -> any
+unexpectedExisting msg _new _old = error msg
 
 -- | Adjust the value by the function if the key exists, or produce `Nothing`
 -- otherwise.

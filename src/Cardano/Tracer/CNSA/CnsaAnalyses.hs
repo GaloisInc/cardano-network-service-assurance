@@ -57,6 +57,7 @@ import           Cardano.Tracer.CNSA.BlockState
 import           Cardano.Tracer.CNSA.ParseLogs
 import           Cardano.Utils.Log
 import           Cardano.Utils.SlotTimes
+import qualified Data.Map as Map
 
 
 ------------------------------------------------------------------------------
@@ -354,18 +355,15 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
             -- update propagation metrics for b1/slot1 (penultimate):
             let
-              delays  = map
-                          (\(p,t)->
-                              (p, diffUTCTime t (slotStart (SlotNo slot1))))
+              delays  = fmap
+                          (\t-> diffUTCTime t (slotStart (SlotNo slot1)))
                           (bt_downloadedHeader (bd_timing b1))
             OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
             OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
             OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
-            when (any (\(_,d)-> d < 0) delays) $
+            when (any (< 0) delays) $
               errorMsg ["Negative Delay"]
-            mapM_ ((\v-> PH.observe v (asPropDelaysHist state))
-                   . cvtTime . snd)
-                   delays
+            mapM_ ((\v-> PH.observe v (asPropDelaysHist state)) . cvtTime) delays
 
         -- unless we have at least two blocks recorded, do nothing:
         _ ->
@@ -395,13 +393,23 @@ addFetchRequest :: Hash
                 -> BlockData -> BlockData
 addFetchRequest _hash _len peer time =
   updateBlockTiming $
-   \bt->bt{bt_sendFetchRequest= (peer,time) : bt_sendFetchRequest bt}
+   \bt->bt{bt_sendFetchRequest=
+    Map.insertWith
+      (unexpectedExisting "addFetchRequest")
+      peer
+      time
+      (bt_sendFetchRequest bt)}
   -- what is _len?
 
 addFetchCompleted :: Hash -> Peer -> UTCTime -> BlockData -> BlockData
 addFetchCompleted _hash peer time =
   updateBlockTiming $
-    \bt->bt{bt_completedBlockFetch= (peer,time) : bt_completedBlockFetch bt}
+    \bt->bt{bt_completedBlockFetch=
+       Map.insertWith
+      (unexpectedExisting "addFetchCompleted")
+      peer
+      time
+      (bt_completedBlockFetch bt)}
 
 addAddedToCurrent
   :: Hash
