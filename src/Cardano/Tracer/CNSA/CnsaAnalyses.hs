@@ -386,43 +386,6 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
     cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
 
-addFetchRequest :: Hash
-                -> Int
-                -> Peer
-                -> UTCTime
-                -> BlockData -> BlockData
-addFetchRequest _hash _len peer time =
-  updateBlockTiming $
-   \bt->bt{bt_sendFetchRequest=
-    Map.insertWith
-      (unexpectedExisting "addFetchRequest")
-      peer
-      time
-      (bt_sendFetchRequest bt)}
-  -- what is _len?
-
-addFetchCompleted :: Hash -> Peer -> UTCTime -> BlockData -> BlockData
-addFetchCompleted _hash peer time =
-  updateBlockTiming $
-    \bt->bt{bt_completedBlockFetch=
-       Map.insertWith
-      (unexpectedExisting "addFetchCompleted")
-      peer
-      time
-      (bt_completedBlockFetch bt)}
-
-addAddedToCurrent
-  :: Hash
-  -> StrictMaybe Int
-  -> Int
-  -> UTCTime
-  -> BlockData -> BlockData
-addAddedToCurrent _hash msize _len time =
-    updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
-  . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
-  -- FIXME: msize vs. _len?? [in current testing: always Nothing]
-  -- why can you ignore _hash?
-
 ---- Boilerplate for BlockState' Datapoint -------------------------
 
 newtype BlockState' = BlockState' BlockState
