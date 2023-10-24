@@ -11,12 +11,10 @@
   * [ ] Update the code to address Marcin's code review (see
     2023-08-11-cardano-node-service-assurance-review.md)
     - [x] Implement the straightforward code improvements.
-    - [ ] Capture any undone suggestions in the following sections.
+    - [ ] Ensure any un-addressed asepects of code review are captured
+          somewhere.
     
   * [ ] Add InfluxDB database backend (Sam)
-    - NOTE: we should start with simplest possible approach; 
-      e.g., an environment variable with executable name, the
-      executable would read json values from a pipe (e.g.!)
             
 ## Priority Two Goals ##
 
