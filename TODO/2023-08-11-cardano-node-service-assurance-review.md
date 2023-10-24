@@ -39,9 +39,6 @@ of `SlotNo` and `Hash`), we wouldn't have that problem.
 
 ####
 
-Should `bl_downloadeedHeader`, `bl_sendFetchrequest`, `bl_completdBlockFetch`
-be strict maps?
-
 Quite likely all records should be strict as well.
 
 It would be nice to add haddocks to each of these fields and describe how they
