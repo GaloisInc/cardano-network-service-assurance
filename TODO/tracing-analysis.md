@@ -45,7 +45,7 @@ separate components:
   1. The tracers that have been added to the application code: i.e., trace
      producers.
   2. The consumers of the traces such as the logging system, datapoints, EKG, etc.
-  3. The /tracing infrastructure/ which brings 1. and 2. together:
+  3. The *tracing infrastructure* which brings 1. and 2. together:
      this isn't trivial, a large part of this is the code that threads
      ``top level'' tracers down to **each** of the components of the
      application code.
@@ -63,7 +63,7 @@ At the code level, we refer to the callers of `traceWith` as
 "application code" or as the trace-emitting program
 ([see](https://github.com/input-output-hk/cardano-node/blob/master/trace-dispatcher/doc/trace-dispatcher.md#overview-and-terminology))
 
-*Trace Consumers*
+**Trace Consumers.**
 Above we referred to `cardano-tracer` as a consumer of traces, but
 there are a growing number of tools that are the ultimate consumers
 of the traces, these consume traces at a higher or semantic level:
@@ -112,7 +112,7 @@ However, the tracing system at the moment is
 ### Issues Detailed ###
 
 As a result of our engagement with all three components of the tracing
-system and using it in the /new-tracing/ mode, we have noticed a few
+system and using it in the *new-tracing* mode, we have noticed a few
 "issues," areas for improvement, and pain points:
 
 - Implementation and efficiency issues:
@@ -128,7 +128,7 @@ system and using it in the /new-tracing/ mode, we have noticed a few
 - Maintenance and automation
   - when adding new tracers to application code---or when adding
     datapoint/tracer abstractions---it *was* some effort to discover
-    where and how we needed to update the /tracing infrastructure/
+    where and how we needed to update the *tracing infrastructure*
     component.  I.e., we must update
     `cardano-node/src/Cardano/Node/Tracing/Tracers.hs` or modules it uses.
 
@@ -223,7 +223,7 @@ these are speculative; not all may be necessary. Here's the list:
       - hierarchical-names
       - types
       - documentation
-  - this should be correct by design, see /Maintainability and automation/ below.
+  - this should be correct by design, see *Maintainability and automation* below.
 
 - Granularity
   - We want a hierarchical name space for every trace.
@@ -253,7 +253,7 @@ these are speculative; not all may be necessary. Here's the list:
       1. the hierarchy of (external) typed tracers,
       2. the cardano-node versions (or protocol version or ...) supported.
   - We'd like to make the external/internal distinction also for constructors and
-    fields (see /Granularity/ above).
+    fields (see *Granularity* above).
   - While adding granularity and external/internal support, we want to
     - keep details and complexity out of the application code;
     - however, the definition of the *App-Tracing-Type* could be exactly
@@ -280,12 +280,12 @@ these are speculative; not all may be necessary. Here's the list:
       - Haskell based?
       - C based??
     - we generate list of datapoints, log messages & types, &
-      documentation (see /documentation and usability/ above).
+      documentation (see *documentation and usability* above).
 
 - Various design principles
   - when we switch to new tracing and use *NT-PRTCL*: there should be
     no lost capabilities, and minimal performance cost.
-  - tracing itself should be /pay as you go/ as much as possible:
+  - tracing itself should be *pay as you go* as much as possible:
     - few/zero computation costs for *any* traces we have disabled
       statically.
     - few/zero computation costs for traces we disable dynamically.
