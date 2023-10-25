@@ -23,15 +23,14 @@ cardano-tracer). See in particular, [New Tracing
 Quickstart](https://github.com/input-output-hk/cardano-node-wiki/wiki/New-Tracing-Quickstart)
 which refers to these two documents [Cardano
 Tracer](https://github.com/input-output-hk/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md)
-and [trace-dispatcher: efficient, simple and flexible program tracing]
-(https://github.com/input-output-hk/cardano-node/blob/master/trace-dispatcher/doc/trace-dispatcher.md).
+and [trace-dispatcher: efficient, simple and flexible program
+tracing](https://github.com/input-output-hk/cardano-node/blob/master/trace-dispatcher/doc/trace-dispatcher.md).
 
 The design is based on contravariant tracing, for a birds-eye
 perspective of contravariant tracing and its advantages, see Duncan
 Coutts' MuniHac 2020 talk:
 
-  [Contravariant logging: How to add logging without getting grumpy]
-  (https://industry.haskell.org/blog/2020/09/munihac-2020/)
+  [Contravariant logging: How to add logging without getting grumpy](https://industry.haskell.org/blog/2020/09/munihac-2020/)
 
 In new-tracing, `cardano-node`, the producer of traces, communicates
 with `cardano-tracer`, a consumer of traces, using a socket running
