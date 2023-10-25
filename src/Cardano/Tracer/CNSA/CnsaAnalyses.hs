@@ -17,6 +17,7 @@ where
 import           Control.Monad
 import           Data.Functor.Contravariant
 import           Data.List (isPrefixOf)
+import qualified Data.Map as Map
 import           Data.Set (Set)
 import           Data.Text (Text)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
@@ -370,8 +371,8 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
             return ()
 
       where
-        time = Log.toTimestamp trObj
-        shost = Log.toHostname trObj -- sampler host
+        time  = Log.toTimestamp trObj
+        shost = Log.toHostname  trObj -- sampler host
         withPeer f =
           case getPeerFromTraceObject trObj of
             Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]

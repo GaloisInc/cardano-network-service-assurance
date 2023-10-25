@@ -10,21 +10,22 @@ module Cardano.Tracer.CNSA.BlockState
   ( BlockData (..),
     BlockProps (..),
     BlockTiming (..),
-    updateBlockTiming,
     Sampler,
-    updateBlockProps,
     BlockState,
+    BlockStateHdl,
+    updateBlockProps,
+    defaultBlockData,
     sortBySlot,
     addSeenHeader,
     addFetchRequest,
     addFetchCompleted,
     addAddedToCurrentChain,
-    BlockStateHdl,
     newBlockStateHdl,
     readBlockStateHdl,
     updateBlockState,
     updateBlockStateByKey,
-    pruneOverflow,
+    updateBlockStateMaybe',
+    pruneOverflow
   )
 where
 
@@ -34,34 +35,33 @@ Secrets kept:
 - `BlockStateHdl` is an `IORef`
 -}
 
-import Cardano.Analysis.API.Ground (Hash)
-import Cardano.Slotting.Block (BlockNo)
-import Cardano.Slotting.Slot (SlotNo)
-import Cardano.Tracer.CNSA.ParseLogs (Peer,Sampler)
-import Cardano.Utils.Log (warnMsg)
-import Data.Aeson (ToJSON)
-import Data.IORef
-  ( IORef,
-    atomicModifyIORef',
-    modifyIORef',
-    newIORef,
-    readIORef,
-    writeIORef,
-  )
-import Data.List (sortOn)
-import qualified Data.Map as Map
-import Data.Map.Strict (Map)
-import Data.Maybe.Strict (StrictMaybe, strictMaybeToMaybe)
-import Data.Ord (Down (..))
-import Data.Time (UTCTime)
-import GHC.Generics (Generic)
+import           Cardano.Analysis.API.Ground (Hash)
+import           Cardano.Slotting.Block (BlockNo)
+import           Cardano.Slotting.Slot (SlotNo)
+import           Cardano.Tracer.CNSA.ParseLogs (Peer,Sampler)
+import           Cardano.Utils.Log (warnMsg,Possibly)
+import           Data.Aeson (ToJSON)
+import           Data.IORef ( IORef,
+                   atomicModifyIORef',
+                   modifyIORef',
+                   newIORef,
+                   readIORef,
+                   writeIORef)
+import           Data.List (sortOn)
+import qualified Data.Map.Strict as Map
+import           Data.Map.Strict (Map,(!?))
+import           Data.Maybe.Strict (StrictMaybe, strictMaybeToMaybe)
+import           Data.Ord (Down (..))
+import           Data.Time (UTCTime)
+import           GHC.Generics (Generic)
 
 --------------------------------------------------------------------------------
 -- BlockData
 
 data BlockData = BlockData
-  { bd_props  :: BlockProps,  -- ^ constants for a given block.
-    bd_timing :: BlockTiming  -- ^ timing info
+  { bd_props  :: BlockProps,              -- ^ constants for a given block.
+    bd_timing :: BlockTiming              -- ^ timing info for each sampling
+                                          --   invariant: map not empty.
   }
   deriving (Eq, Ord, Show, Generic, ToJSON)
 
@@ -208,6 +208,12 @@ readBlockStateHdl (BlockStateHdl ref) = readIORef ref
 updateBlockState :: BlockStateHdl -> (BlockState -> BlockState) -> IO ()
 updateBlockState (BlockStateHdl ref) = modifyIORef' ref
 
+updateBlockStateMaybe' :: BlockStateHdl
+                      -> (BlockState -> Either a BlockState)
+                      -> IO (Maybe a)
+updateBlockStateMaybe' (BlockStateHdl ref) =
+  atomicModifyIORefMaybe' ref
+
 updateBlockStateByKey :: BlockStateHdl -> Hash -> (BlockData -> BlockData) -> IO ()
 updateBlockStateByKey (BlockStateHdl ref) k f = modifyIORefMaybe ref update
   where
@@ -228,6 +234,15 @@ pruneOverflow (BlockStateHdl ref) = atomicModifyIORef' ref prune
       in (BlockState keepers, overflow)
 
 ---- IORef utilities -------------------------------------------------
+
+-- | atomicModifyIORefMaybe' - small variation on atomicModifyIORef'
+atomicModifyIORefMaybe' :: IORef a -> (a -> Either b a) -> IO (Maybe b)
+atomicModifyIORefMaybe' ref f = atomicModifyIORef' ref g
+  where
+  g a = case f a of
+          Right a' -> (a', Nothing)
+          Left  b  -> (a , Just b)
+
 
 modifyIORefMaybe :: IORef a -> (a -> IO (Maybe a)) -> IO ()
 modifyIORefMaybe ref f =
