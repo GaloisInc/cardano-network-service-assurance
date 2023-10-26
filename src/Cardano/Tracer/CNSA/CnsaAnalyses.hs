@@ -362,7 +362,7 @@ processBlockStatusAnalysis aArgs state trObj logObj =
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
               modifyBlockStateIOMaybe blockStateHdl $
-                \bs-> return (Just $ addSeenHeader shost slotno blockno hash peer time bs)
+                addSeenHeader shost slotno blockno hash peer time
 
         LO.LOBlockFetchClientRequested hash len ->
             withPeer $ \peer->

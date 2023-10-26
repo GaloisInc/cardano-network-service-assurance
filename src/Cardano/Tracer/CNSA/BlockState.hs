@@ -146,25 +146,29 @@ sortBySlot :: BlockState -> [(Hash, BlockData)]
 sortBySlot (BlockState m) =
   sortOn (Down . bp_slot . bd_props . snd) (Map.toList m)
 
-addSeenHeader :: Sampler -> SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
+addSeenHeader :: Sampler -> SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> IO (Maybe BlockState)
 addSeenHeader shost slot block hash peer time (BlockState m) =
-  BlockState (Map.alter alterFunc hash m)
+  return $ Just $
+    BlockState (Map.alter alterBlockData hash m)
   where
-    update =
-      updateBlockTiming shost
-        (\bt->bt{bt_downloadedHeader =
-          Map.insertWith
-            (unexpectedExisting "addSeenHeader: unexpected entry")
-               -- FIXME: turn into Left
-            peer
-            time
-            (bt_downloadedHeader bt)})
-    alterFunc = \case
+    alterBlockData = \case
+      -- 'hash' not in 'm':
       Nothing -> Just (initialBlockData
                          shost
                          (initialBlockTiming peer time)
                          block slot)
-      Just bd -> Just (update bd)
+      -- 'hash' exists in 'm':
+      Just bd -> Just $
+        -- FIXME: oops, if shost not in map, need to add & initialize
+        updateBlockTiming shost
+          (\bt->bt{bt_downloadedHeader =
+            Map.insertWith
+              (unexpectedExisting "addSeenHeader: unexpected entry")
+                 -- FIXME: turn into Left
+              peer
+              time
+              (bt_downloadedHeader bt)})
+          bd
 
 addFetchRequest :: Sampler
                 -> Int
