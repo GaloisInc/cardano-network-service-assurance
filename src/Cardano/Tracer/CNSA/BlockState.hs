@@ -98,10 +98,9 @@ updateBlockTimingForSampler shost update bd = bd{bd_timing= timing}
 
   alterBlockTiming =
     \case
-      Nothing -> Nothing
-      Just bt -> Just (update bt)
+      Nothing -> Just $ update emptyBlockTiming
+      Just bt -> Just $ update bt
   -- FIXME[R3]: extend to Possibly so callers can do likewise
-  -- FIXME: if shost not in Map, need to add & initialize.
 
 updateBlockProps :: (BlockProps -> BlockProps) -> BlockData -> BlockData
 updateBlockProps upd b = b{bd_props= upd(bd_props b)}
