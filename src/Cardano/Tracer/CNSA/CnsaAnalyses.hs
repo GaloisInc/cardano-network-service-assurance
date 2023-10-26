@@ -349,18 +349,10 @@ processBlockStatusAnalysis aArgs state trObj logObj =
   where
     debugTr = aaDebugTr aArgs
 
-    time  = Log.toTimestamp trObj
-    shost = Log.toHostname  trObj -- sampler host
-
-    withPeer f =
-      case getPeerFromTraceObject trObj of
-        Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
-        Right p -> f p
-
     blockStateHdl = asBlockStateHdl state
     blockDBHdl = asBlockDBHdl state
 
-    updateBlockStateFromTraceObject = do
+    updateBlockStateFromTraceObject =
       case logObj of
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
@@ -385,6 +377,14 @@ processBlockStatusAnalysis aArgs state trObj logObj =
       where
         updateBS      = updateBlockState blockStateHdl
         updateBSByKey = updateBlockStateByKey blockStateHdl
+
+        time  = Log.toTimestamp trObj
+        shost = Log.toHostname  trObj -- sampler host
+
+        withPeer f =
+          case getPeerFromTraceObject trObj of
+            Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
+            Right p -> f p
 
     debugTraceBlockData nm es =
       do
