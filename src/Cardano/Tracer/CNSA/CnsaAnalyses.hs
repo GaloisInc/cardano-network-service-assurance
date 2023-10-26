@@ -21,7 +21,8 @@ import           Data.List (isPrefixOf)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import           Data.Text (Text)
-import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime)
+import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime
+                           ,NominalDiffTime)
 import           GHC.Generics
 import           Network.HostName (HostName)
 import           System.IO (hFlush, stdout)
@@ -332,9 +333,13 @@ processBlockStatusAnalysis aArgs state trObj logObj =
 
         -- update propagation metrics for b1/slot1 (penultimate):
         let
-          delays  = fmap
-                      (\t-> diffUTCTime t (slotStart (SlotNo slot1)))
-                      (bt_downloadedHeader (bd_timing b1))
+          delays :: [NominalDiffTime]
+          delays = map
+                     (\t-> diffUTCTime t (slotStart (SlotNo slot1)))
+                     (  concatMap (Map.elems . bt_downloadedHeader)
+                      $ Map.elems
+                      $ bd_timing b1
+                      )
         OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
         OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
         OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]

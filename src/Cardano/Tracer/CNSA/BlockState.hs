@@ -15,7 +15,6 @@ module Cardano.Tracer.CNSA.BlockState
     BlockState,
     BlockStateHdl,
     updateBlockProps,
-    defaultBlockData,
     sortBySlot,
     addSeenHeader,
     addFetchRequest,
@@ -64,8 +63,8 @@ import           GHC.Generics (Generic)
 
 data BlockData = BlockData
   { bd_props  :: BlockProps,              -- ^ constants for a given block.
-    bd_timing :: BlockTiming              -- ^ timing info for each sampling
-                                          --   invariant: map not empty.
+    bd_timing :: Map Sampler BlockTiming  -- ^ timing info for each sampling
+                                          --   invariant: Map not empty.
   }
   deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
@@ -89,22 +88,27 @@ data BlockTiming = BlockTiming
   }
   deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
-updateBlockTiming :: (BlockTiming -> BlockTiming) -> BlockData -> BlockData
-updateBlockTiming upd b = b{bd_timing= upd(bd_timing b)}
+updateBlockTiming :: Sampler
+                  -> (BlockTiming -> BlockTiming)
+                  -> BlockData -> BlockData
+updateBlockTiming shost update bd = bd{bd_timing= timing}
+  where
+  timing = Map.adjust update shost (bd_timing bd)
+  -- FIXME: this should be extended to Possibly so users of can do likewise
 
 updateBlockProps :: (BlockProps -> BlockProps) -> BlockData -> BlockData
 updateBlockProps upd b = b{bd_props= upd(bd_props b)}
 
-defaultBlockData :: BlockNo -> SlotNo -> BlockData
-defaultBlockData b s =
+initialBlockData :: Sampler -> BlockTiming -> BlockNo -> SlotNo -> BlockData
+initialBlockData shost bt b s =
   BlockData{ bd_props = defaultBlockProps b s,
-             bd_timing= defaultBlockTiming
+             bd_timing= Map.singleton shost bt
            }
 
-defaultBlockTiming :: BlockTiming
-defaultBlockTiming =
+initialBlockTiming :: Peer -> UTCTime -> BlockTiming
+initialBlockTiming peer time =
   BlockTiming {
-    bt_downloadedHeader = mempty,
+    bt_downloadedHeader = Map.singleton peer time,
     bt_sendFetchRequest = mempty,
     bt_completedBlockFetch = mempty,
     bt_addedToCurrentChain = Nothing
@@ -115,7 +119,7 @@ defaultBlockProps b s =
   BlockProps {
     bp_blockNo = b,
     bp_slot    = s,
-    bp_size   = Nothing
+    bp_size    = Nothing
   }
 
 --------------------------------------------------------------------------------
@@ -132,7 +136,6 @@ newtype BlockState = BlockState (Map Hash BlockData)
   deriving anyclass (ToJSON)
 
 -- FIXME[F2]: See Marcin's review comments re Hash, add comments & justifications
--- FIXME[F1]: add the address of the sample node we received from!!
 
 -- | the maximum size of the Map in BlockState
 blockStateMax :: Int
@@ -144,21 +147,24 @@ sortBySlot (BlockState m) =
   sortOn (Down . bp_slot . bd_props . snd) (Map.toList m)
 
 addSeenHeader :: Sampler -> SlotNo -> BlockNo -> Hash -> Peer -> UTCTime -> BlockState -> BlockState
-addSeenHeader _shost slot block hash peer time (BlockState m) =
-  BlockState (Map.alter f hash m)
+addSeenHeader shost slot block hash peer time (BlockState m) =
+  BlockState (Map.alter alterFunc hash m)
   where
     update =
-      updateBlockTiming
+      updateBlockTiming shost
         (\bt->bt{bt_downloadedHeader =
           Map.insertWith
             (unexpectedExisting "addSeenHeader: unexpected entry")
+               -- FIXME: turn into Left
             peer
             time
             (bt_downloadedHeader bt)})
-    f blockDataM =
-      case blockDataM of
-        Nothing -> Just (update (defaultBlockData block slot))
-        Just bd -> Just (update bd)
+    alterFunc = \case
+      Nothing -> Just (initialBlockData
+                         shost
+                         (initialBlockTiming peer time)
+                         block slot)
+      Just bd -> Just (update bd)
 
 addFetchRequest :: Sampler
                 -> Int
@@ -166,9 +172,9 @@ addFetchRequest :: Sampler
                 -> UTCTime
                 -> BlockData
                 -> Possibly BlockData
-addFetchRequest _shost _len peer time =
+addFetchRequest shost _len peer time =
     Right
-  . updateBlockTiming
+  . updateBlockTiming shost
     (\bt->bt{bt_sendFetchRequest=
        Map.insertWith
          (unexpectedExisting "addFetchRequest")   -- FIXME: turn into Left
@@ -182,9 +188,9 @@ addFetchCompleted :: Sampler
                   -> UTCTime
                   -> BlockData
                   -> Possibly BlockData
-addFetchCompleted _shost peer time =
+addFetchCompleted shost peer time =
     Right
-  . updateBlockTiming
+  . updateBlockTiming shost
     (\bt->bt{bt_completedBlockFetch=
        Map.insertWith
          (unexpectedExisting "addFetchCompleted") -- FIXME: turn into Left
@@ -199,12 +205,11 @@ addAddedToCurrentChain
   -> UTCTime
   -> BlockData
   -> Possibly BlockData
-addAddedToCurrentChain _shost msize _len time =
-    Right
-  . updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
+addAddedToCurrentChain shost msize _len time =
+    Right   -- possible errors in future.
+  . updateBlockTiming shost (\bt->bt{ bt_addedToCurrentChain = Just time})
   . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
-  -- possible errors in future.
 
 --------------------------------------------------------------------------------
 -- BlockStateHdl
@@ -301,6 +306,7 @@ unexpectedExisting msg _new _old = error msg
 -- Just (Map.fromList [("one", 2)])
 adjustIfMember :: Ord k => (a -> a) -> k -> Map k a -> Maybe (Map k a)
 adjustIfMember f = Map.alterF (fmap (Just . f))
+
 
 -- | similar to the last but ... (FIXME: doc!)
 adjustIfMember2 :: (Show k, Ord k)
