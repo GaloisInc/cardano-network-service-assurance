@@ -14,8 +14,8 @@ The required configuration files can be found in
 Beyond the configuration files, we capture shared system information in
 [variables.sh](../scripts/variables.sh):
 - You will need to update and extend this for your needs.  In
-  particular you will need to change the `*_HOST` variables, but you
-  should be able to leave the `*_SOCK` variables alone. Note the
+  particular you will need to change the `*_HOST` and `*_IPADDR` variables,
+  but you should be able to leave the `*_SOCK` variables alone. Note the
   documentation in the shell file.
 - You'll need to `source` this file on all your nodes.
 
@@ -123,12 +123,12 @@ First, forward ports from all your sampling nodes to the sink host:
 
     tmux new -s port-forwarding
     
-     [ -e $SA1_REMOTE_TRACER_SOCK ] && remove $SA1_REMOTE_TRACER_SOCK
-     [ -e $SA2_REMOTE_TRACER_SOCK ] && remove $SA2_REMOTE_TRACER_SOCK
+     [ -e $SA1_REMOTE_TRACER_SOCK ] && unlink $SA1_REMOTE_TRACER_SOCK
+     [ -e $SA2_REMOTE_TRACER_SOCK ] && unlink $SA2_REMOTE_TRACER_SOCK
 
-     autossh -nNT -o "ExitOnForwardFailure yes" \
+     autossh -nNT -M 0 -o "ExitOnForwardFailure yes" \
        -L $SA1_REMOTE_TRACER_SOCK:$REFWD_SOCK $SA1_HOST &
-     autossh -nNT -o "ExitOnForwardFailure yes" \
+     autossh -nNT -M 0 -o "ExitOnForwardFailure yes" \
        -L $SA2_REMOTE_TRACER_SOCK:$REFWD_SOCK $SA2_HOST &
 
 Note that we are connecting *not* to the `cardano-node` tracing socket, but to
