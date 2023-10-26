@@ -7,6 +7,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Cardano.Tracer.CNSA.CnsaAnalyses
   ( mkCnsaSinkAnalyses
@@ -254,7 +255,7 @@ blockStatusAnalysis =
 
 data BlockAnalysisState = BlockAnalysisState
   { asBlockStateHdl   :: BlockStateHdl,
-    asBlockDBHdl      :: BlockDBHandle,
+    asBlockDBHdl      :: Maybe BlockDBHandle,
     asBlockStateTrace :: Trace IO BlockState,
     asTopSlotGauge    :: PG.Gauge,
     asPenultSlotGauge :: PG.Gauge,
@@ -266,7 +267,9 @@ initializeBlockStatusAnalysis
 initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
   do
     blockStateHdl   <- newBlockStateHdl
-    blockDBHdl      <- initializeBlockDB "blocks"
+    blockDBHdl      <- initializeBlockDB "blocks" >>= \case
+      Left err -> putStrLn err >> pure Nothing
+      Right hdl -> pure (Just hdl)
     blockStateTrace <- contramap BlockState' <$> mkDataPointTracer traceDP
     topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
     penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
@@ -335,7 +338,9 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
       if null overflowList then
         OrigCT.traceWith debugTr "Overflow: none"
       else
-        mapM_ (writeBlockData blockDBHdl) overflowList
+        let write :: (Hash, BlockData) -> IO ()
+            write = maybe (\_ -> pure ()) writeBlockData blockDBHdl
+        in mapM_ write overflowList
 
       -- Update Metrics:
       sorted' <- sortBySlot <$> readBlockStateHdl blockStateHdl

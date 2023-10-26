@@ -1,4 +1,6 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Cardano.Tracer.CNSA.BlockState.DB
   ( BlockDBHandle,
@@ -10,6 +12,7 @@ where
 
 import Cardano.Analysis.API.Ground (Hash (..))
 import Cardano.Tracer.CNSA.BlockState
+import Control.Exception (SomeException, try)
 import Data.Aeson (Value (..), eitherDecodeStrict)
 import Data.Aeson.Text (encodeToLazyText)
 import qualified Data.Map as Map
@@ -41,12 +44,15 @@ import qualified Database.InfluxDB.Format as F
 newtype BlockDBHandle = Handle Database
 
 -- | Create a database with the given name
-initializeBlockDB :: String -> IO BlockDBHandle
+initializeBlockDB :: String -> IO (Either String BlockDBHandle)
 initializeBlockDB dbStr =
   do
     let db = formatDatabase (fromString dbStr)
-    manage (queryParams db) (formatQuery ("CREATE DATABASE " % F.database) db)
-    pure (Handle db)
+    try (manage (queryParams db) (create db)) >>= \case
+      Left (e :: SomeException) -> pure (Left (show e))
+      Right () -> pure (Right (Handle db))
+  where
+    create db = formatQuery ("CREATE DATABASE " % F.database) db
 
 readBlockData :: BlockDBHandle -> IO [(Hash, BlockData)]
 readBlockData (Handle db) = V.toList <$> query (queryParams db) selectAll
