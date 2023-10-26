@@ -291,18 +291,76 @@ processBlockStatusAnalysis
   :: AnalysisArgs
   -> BlockAnalysisState
   -> Log.TraceObject -> LO.LOBody -> IO ()
-processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
-  processTraceObject
+processBlockStatusAnalysis aArgs state trObj logObj =
+  do
+  -- update the BlockState:
+  updateBlockStateFromTraceObject
+
+  -- debugTracing:
+  sorted <- sortBySlot <$> readBlockStateHdl blockStateHdl
+  debugTraceBlockData "blockState[pre]" sorted
+
+  -- update 'blockStateHdl', removing overflow:
+  overflowList <- pruneOverflow blockStateHdl
+
+  -- update blockState Datapoint:
+  readBlockStateHdl blockStateHdl >>= traceWith (asBlockStateTrace state)
+
+  -- Process 'overflowList':
+  if null overflowList then
+    OrigCT.traceWith debugTr "Overflow: none"
+  else
+    let write :: (Hash, BlockData) -> IO ()
+        write = maybe (\_ -> pure ()) writeBlockData blockDBHdl
+    in mapM_ write overflowList
+
+  -- Update Metrics:
+  sorted' <- sortBySlot <$> readBlockStateHdl blockStateHdl
+  debugTraceBlockData "blockState[post]" sorted'
+  case map snd sorted' of
+    b0:b1:_ ->
+        do
+        let
+          SlotNo slot0 = bp_slot $ bd_props b0
+          SlotNo slot1 = bp_slot $ bd_props b1
+
+        -- update slot metrics:
+        PG.set (fromIntegral slot0) (asTopSlotGauge state)
+        PG.set (fromIntegral slot1) (asPenultSlotGauge state)
+          -- NOTE: No integers? everything a float?!
+          --       See node's prometheus output: has integers
+
+        -- update propagation metrics for b1/slot1 (penultimate):
+        let
+          delays  = fmap
+                      (\t-> diffUTCTime t (slotStart (SlotNo slot1)))
+                      (bt_downloadedHeader (bd_timing b1))
+        OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
+        OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
+        OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
+        when (any (< 0) delays) $
+          errorMsg ["Negative Delay"]
+        mapM_ ((\v-> PH.observe v (asPropDelaysHist state)) . cvtTime) delays
+
+    -- unless we have at least two blocks recorded, do nothing:
+    _ ->
+        return ()
 
   where
+    debugTr = aaDebugTr aArgs
+
+    time  = Log.toTimestamp trObj
+    shost = Log.toHostname  trObj -- sampler host
+
+    withPeer f =
+      case getPeerFromTraceObject trObj of
+        Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
+        Right p -> f p
+
     blockStateHdl = asBlockStateHdl state
     blockDBHdl = asBlockDBHdl state
 
-    updateBS = updateBlockState blockStateHdl
-
-    updateBSByKey = updateBlockStateByKey blockStateHdl
-
-    processTraceObject trObj logObj = do
+    updateBlockStateFromTraceObject = do
       case logObj of
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
@@ -324,63 +382,9 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
         _ -> return ()
 
-      -- debugTracing:
-      sorted <- sortBySlot <$> readBlockStateHdl blockStateHdl
-      debugTraceBlockData "blockState[pre]" sorted
-
-      -- update 'blockStateHdl', removing overflow:
-      overflowList <- pruneOverflow blockStateHdl
-
-      -- update blockState Datapoint:
-      readBlockStateHdl blockStateHdl >>= traceWith (asBlockStateTrace state)
-
-      -- Process 'overflowList':
-      if null overflowList then
-        OrigCT.traceWith debugTr "Overflow: none"
-      else
-        let write :: (Hash, BlockData) -> IO ()
-            write = maybe (\_ -> pure ()) writeBlockData blockDBHdl
-        in mapM_ write overflowList
-
-      -- Update Metrics:
-      sorted' <- sortBySlot <$> readBlockStateHdl blockStateHdl
-      debugTraceBlockData "blockState[post]" sorted'
-      case map snd sorted' of
-        b0:b1:_ ->
-            do
-            let
-              SlotNo slot0 = bp_slot $ bd_props b0
-              SlotNo slot1 = bp_slot $ bd_props b1
-
-            -- update slot metrics:
-            PG.set (fromIntegral slot0) (asTopSlotGauge state)
-            PG.set (fromIntegral slot1) (asPenultSlotGauge state)
-              -- NOTE: No integers? everything a float?!
-              --       See node's prometheus output: has integers
-
-            -- update propagation metrics for b1/slot1 (penultimate):
-            let
-              delays  = fmap
-                          (\t-> diffUTCTime t (slotStart (SlotNo slot1)))
-                          (bt_downloadedHeader (bd_timing b1))
-            OrigCT.traceWith debugTr $ unwords ["slot_top:", show slot0]
-            OrigCT.traceWith debugTr $ unwords ["slot_pen:", show slot1]
-            OrigCT.traceWith debugTr $ unwords ["delays:"  , show delays]
-            when (any (< 0) delays) $
-              errorMsg ["Negative Delay"]
-            mapM_ ((\v-> PH.observe v (asPropDelaysHist state)) . cvtTime) delays
-
-        -- unless we have at least two blocks recorded, do nothing:
-        _ ->
-            return ()
-
       where
-        time  = Log.toTimestamp trObj
-        shost = Log.toHostname  trObj -- sampler host
-        withPeer f =
-          case getPeerFromTraceObject trObj of
-            Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
-            Right p -> f p
+        updateBS      = updateBlockState blockStateHdl
+        updateBSByKey = updateBlockStateByKey blockStateHdl
 
     debugTraceBlockData nm es =
       do
