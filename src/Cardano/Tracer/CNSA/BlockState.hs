@@ -88,13 +88,15 @@ data BlockTiming = BlockTiming
   }
   deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
-updateBlockTiming :: Sampler
-                  -> (BlockTiming -> BlockTiming)
-                  -> BlockData -> BlockData
-updateBlockTiming shost update bd = bd{bd_timing= timing}
+updateBlockTimingForSampler
+  :: Sampler
+  -> (BlockTiming -> BlockTiming)
+  -> BlockData -> BlockData
+updateBlockTimingForSampler shost update bd = bd{bd_timing= timing}
   where
   timing = Map.adjust update shost (bd_timing bd)
   -- FIXME: this should be extended to Possibly so users of can do likewise
+  -- FIXME: if shost not in Map, need to add & initialize.
 
 updateBlockProps :: (BlockProps -> BlockProps) -> BlockData -> BlockData
 updateBlockProps upd b = b{bd_props= upd(bd_props b)}
@@ -159,8 +161,7 @@ addSeenHeader shost slot block hash peer time (BlockState m) =
                          block slot)
       -- 'hash' exists in 'm':
       Just bd -> Just $
-        -- FIXME: oops, if shost not in map, need to add & initialize
-        updateBlockTiming shost
+        updateBlockTimingForSampler shost
           (\bt->bt{bt_downloadedHeader =
             Map.insertWith
               (unexpectedExisting "addSeenHeader: unexpected entry")
@@ -178,7 +179,7 @@ addFetchRequest :: Sampler
                 -> Possibly BlockData
 addFetchRequest shost _len peer time =
     Right
-  . updateBlockTiming shost
+  . updateBlockTimingForSampler shost
     (\bt->bt{bt_sendFetchRequest=
        Map.insertWith
          (unexpectedExisting "addFetchRequest")   -- FIXME: turn into Left
@@ -194,7 +195,7 @@ addFetchCompleted :: Sampler
                   -> Possibly BlockData
 addFetchCompleted shost peer time =
     Right
-  . updateBlockTiming shost
+  . updateBlockTimingForSampler shost
     (\bt->bt{bt_completedBlockFetch=
        Map.insertWith
          (unexpectedExisting "addFetchCompleted") -- FIXME: turn into Left
@@ -211,7 +212,8 @@ addAddedToCurrentChain
   -> Possibly BlockData
 addAddedToCurrentChain shost msize _len time =
     Right   -- possible errors in future.
-  . updateBlockTiming shost (\bt->bt{ bt_addedToCurrentChain = Just time})
+  . updateBlockTimingForSampler shost
+      (\bt->bt{ bt_addedToCurrentChain = Just time})
   . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
 
