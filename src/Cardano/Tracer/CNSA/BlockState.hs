@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use forM_" #-}
@@ -51,6 +52,7 @@ import           Data.IORef ( IORef,
 import           Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict (Map,(!?))
+import           Data.Maybe (fromJust)
 import           Data.Maybe.Strict (StrictMaybe, strictMaybeToMaybe)
 import           Data.Ord (Down (..))
 import           Data.Time (UTCTime)
@@ -162,37 +164,47 @@ addFetchRequest :: Sampler
                 -> Int
                 -> Peer
                 -> UTCTime
-                -> BlockData -> BlockData
+                -> BlockData
+                -> Possibly BlockData
 addFetchRequest _shost _len peer time =
-  updateBlockTiming $
-   \bt->bt{bt_sendFetchRequest=
-    Map.insertWith
-      (unexpectedExisting "addFetchRequest")
-      peer
-      time
-      (bt_sendFetchRequest bt)}
+    Right
+  . updateBlockTiming
+    (\bt->bt{bt_sendFetchRequest=
+       Map.insertWith
+         (unexpectedExisting "addFetchRequest")   -- FIXME: turn into Left
+         peer
+         time
+         (bt_sendFetchRequest bt)})
   -- what is _len?
 
-addFetchCompleted :: Sampler -> Peer -> UTCTime -> BlockData -> BlockData
+addFetchCompleted :: Sampler
+                  -> Peer
+                  -> UTCTime
+                  -> BlockData
+                  -> Possibly BlockData
 addFetchCompleted _shost peer time =
-  updateBlockTiming $
-    \bt->bt{bt_completedBlockFetch=
+    Right
+  . updateBlockTiming
+    (\bt->bt{bt_completedBlockFetch=
        Map.insertWith
-      (unexpectedExisting "addFetchCompleted")
-      peer
-      time
-      (bt_completedBlockFetch bt)}
+         (unexpectedExisting "addFetchCompleted") -- FIXME: turn into Left
+         peer
+         time
+         (bt_completedBlockFetch bt)})
 
 addAddedToCurrentChain
   :: Sampler
   -> StrictMaybe Int
   -> Int
   -> UTCTime
-  -> BlockData -> BlockData
+  -> BlockData
+  -> Possibly BlockData
 addAddedToCurrentChain _shost msize _len time =
-    updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
+    Right
+  . updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
   . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
+  -- possible errors in future.
 
 --------------------------------------------------------------------------------
 -- BlockStateHdl
@@ -210,21 +222,22 @@ updateBlockState :: BlockStateHdl -> (BlockState -> BlockState) -> IO ()
 updateBlockState (BlockStateHdl ref) = modifyIORef' ref
 
 updateBlockStateMaybe' :: BlockStateHdl
-                      -> (BlockState -> Either a BlockState)
-                      -> IO (Maybe a)
+                       -> (BlockState -> Either a BlockState)
+                       -> IO (Maybe a)
 updateBlockStateMaybe' (BlockStateHdl ref) =
   atomicModifyIORefMaybe' ref
 
-updateBlockStateByKey :: BlockStateHdl -> Hash -> (BlockData -> BlockData) -> IO ()
-updateBlockStateByKey (BlockStateHdl ref) k f = modifyIORefIOMaybe ref update
+updateBlockStateByKey :: BlockStateHdl
+                      -> Hash
+                      -> (BlockData -> Possibly BlockData)
+                      -> IO ()
+updateBlockStateByKey (BlockStateHdl ref) k f =
+  modifyIORefIOMaybe ref update
   where
     update (BlockState m) =
-      case adjustIfMember f k m of
-        Just m' -> pure (Just (BlockState m'))
-        Nothing ->
-          do
-            warnMsg ["ignoring TraceObj: can't update unknown hash (either tool old or error): " ++ show k]
-            pure Nothing
+      case adjustIfMember2 f k m of
+        Right m' -> pure (Just (BlockState m'))
+        Left ss  -> warnMsg ss >> pure Nothing
 
 modifyBlockStateIOMaybe :: BlockStateHdl
                         -> (BlockState -> IO (Maybe BlockState))
@@ -278,7 +291,7 @@ splitMapOn keep order m = (Map.fromList keepers, overflow)
 unexpectedExisting :: String -> any -> any -> any
 unexpectedExisting msg _new _old = error msg
 
--- | Adjust the value by the function if the key exists, or produce `Nothing`
+-- | Adjust the value by the function if the key exists, or produce Nothing
 -- otherwise.
 --
 -- >>> adjustIfMember (+ 1) "one" (Map.singleton "two" 2)
@@ -288,3 +301,14 @@ unexpectedExisting msg _new _old = error msg
 -- Just (Map.fromList [("one", 2)])
 adjustIfMember :: Ord k => (a -> a) -> k -> Map k a -> Maybe (Map k a)
 adjustIfMember f = Map.alterF (fmap (Just . f))
+
+-- | similar to the last but ... (FIXME: doc!)
+adjustIfMember2 :: (Show k, Ord k)
+                => (a -> Possibly a)
+                -> k -> Map k a -> Possibly (Map k a)
+adjustIfMember2 f k =
+  Map.alterF
+    (\case
+        Nothing -> Left ["key '" ++ show k ++"' not in Map"]
+        Just a  -> fmap Just (f a))
+    k
