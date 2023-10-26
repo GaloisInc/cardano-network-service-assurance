@@ -375,7 +375,10 @@ processBlockStatusAnalysis aArgs state trObj logObj =
         _ -> return ()
 
       where
-        updateBS      = updateBlockState blockStateHdl
+        updateBS :: (BlockState -> BlockState) -> IO ()
+        updateBS = updateBlockState blockStateHdl
+
+        updateBSByKey :: Hash -> (BlockData -> BlockData) -> IO ()
         updateBSByKey = updateBlockStateByKey blockStateHdl
 
         time  = Log.toTimestamp trObj
