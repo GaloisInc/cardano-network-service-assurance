@@ -40,6 +40,7 @@ library cnsa-sink-lib
   exposed-modules:      Cardano.Tracer.CNSA.CnsaSink
                         Cardano.Tracer.CNSA.CnsaAnalyses
                         Cardano.Tracer.CNSA.BlockState
+                        Cardano.Tracer.CNSA.BlockState.DB
                         Cardano.Tracer.CNSA.ParseLogs
                         Cardano.Utils.Log
                         Cardano.Utils.SlotTimes
@@ -55,6 +56,7 @@ library cnsa-sink-lib
                       , extra
                       , generic-data
                       , hostname
+                      , influxdb
                       , ouroboros-network-api
                       , prometheus
                       , stm
@@ -63,6 +65,7 @@ library cnsa-sink-lib
                       , time
                       , trace-dispatcher
                       , trace-forward
+                      , vector
                       
                       -- local packages:
                       , locli-slice

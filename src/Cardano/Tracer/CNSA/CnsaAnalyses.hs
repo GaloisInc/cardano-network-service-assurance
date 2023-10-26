@@ -55,6 +55,7 @@ import qualified System.Metrics.Prometheus.Metric.Histogram    as PH
 
 -- local to this pkg:
 import           Cardano.Tracer.CNSA.BlockState
+import           Cardano.Tracer.CNSA.BlockState.DB (BlockDBHandle, initializeBlockDB, writeBlockData)
 import           Cardano.Tracer.CNSA.ParseLogs
 import           Cardano.Utils.Log
 import           Cardano.Utils.SlotTimes
@@ -253,6 +254,7 @@ blockStatusAnalysis =
 
 data BlockAnalysisState = BlockAnalysisState
   { asBlockStateHdl   :: BlockStateHdl,
+    asBlockDBHdl      :: BlockDBHandle,
     asBlockStateTrace :: Trace IO BlockState,
     asTopSlotGauge    :: PG.Gauge,
     asPenultSlotGauge :: PG.Gauge,
@@ -264,6 +266,7 @@ initializeBlockStatusAnalysis
 initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
   do
     blockStateHdl   <- newBlockStateHdl
+    blockDBHdl      <- initializeBlockDB "blocks"
     blockStateTrace <- contramap BlockState' <$> mkDataPointTracer traceDP
     topSlotGauge    <- PR.registerGauge     "slot_top"         mempty registry
     penultSlotGauge <- PR.registerGauge     "slot_penultimate" mempty registry
@@ -272,6 +275,7 @@ initializeBlockStatusAnalysis (AnalysisArgs registry traceDP _) =
     pure $ Right $
       BlockAnalysisState
         { asBlockStateHdl   = blockStateHdl,
+          asBlockDBHdl      = blockDBHdl,
           asBlockStateTrace = blockStateTrace,
           asTopSlotGauge    = topSlotGauge,
           asPenultSlotGauge = penultSlotGauge,
@@ -289,6 +293,7 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
 
   where
     blockStateHdl = asBlockStateHdl state
+    blockDBHdl = asBlockDBHdl state
 
     updateBS = updateBlockState blockStateHdl
 
@@ -330,13 +335,7 @@ processBlockStatusAnalysis (AnalysisArgs _registry _traceDP debugTr) state =
       if null overflowList then
         OrigCT.traceWith debugTr "Overflow: none"
       else
-        -- (print to stdout for now, later...?)
-        -- FIXME: this is not ideal, esp. the hFlush!
-        do
-        hFlush stdout
-        mapM_ (\b-> putStrLn ("Overflow: " ++ show b))
-              overflowList
-        hFlush stdout
+        mapM_ (writeBlockData blockDBHdl) overflowList
 
       -- Update Metrics:
       sorted' <- sortBySlot <$> readBlockStateHdl blockStateHdl

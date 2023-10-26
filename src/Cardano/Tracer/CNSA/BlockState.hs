@@ -35,12 +35,13 @@ Secrets kept:
 - `BlockStateHdl` is an `IORef`
 -}
 
+-- <<<<<<< HEAD
 import           Cardano.Analysis.API.Ground (Hash)
 import           Cardano.Slotting.Block (BlockNo)
 import           Cardano.Slotting.Slot (SlotNo)
 import           Cardano.Tracer.CNSA.ParseLogs (Peer,Sampler)
 import           Cardano.Utils.Log (warnMsg,Possibly)
-import           Data.Aeson (ToJSON)
+import           Data.Aeson (ToJSON, FromJSON)
 import           Data.IORef ( IORef,
                    atomicModifyIORef',
                    modifyIORef',
@@ -55,6 +56,7 @@ import           Data.Ord (Down (..))
 import           Data.Time (UTCTime)
 import           GHC.Generics (Generic)
 
+
 --------------------------------------------------------------------------------
 -- BlockData
 
@@ -63,7 +65,7 @@ data BlockData = BlockData
     bd_timing :: BlockTiming              -- ^ timing info for each sampling
                                           --   invariant: map not empty.
   }
-  deriving (Eq, Ord, Show, Generic, ToJSON)
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 -- | data intrinsic to a block.
 data BlockProps = BlockProps
@@ -71,7 +73,7 @@ data BlockProps = BlockProps
     bp_slot    :: SlotNo,
     bp_size    :: Maybe Int
   }
-  deriving (Eq, Ord, Show, Generic, ToJSON)
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 -- | block timing data with respect to a sampling node [and its peers]:
 data BlockTiming = BlockTiming
@@ -83,7 +85,7 @@ data BlockTiming = BlockTiming
       -- downloaded, see #4226.
     bt_addedToCurrentChain :: Maybe UTCTime
   }
-  deriving (Eq, Ord, Show, Generic, ToJSON)
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 updateBlockTiming :: (BlockTiming -> BlockTiming) -> BlockData -> BlockData
 updateBlockTiming upd b = b{bd_timing= upd(bd_timing b)}
