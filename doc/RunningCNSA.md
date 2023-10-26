@@ -37,6 +37,21 @@ In the following we use `tmux` for convenience; install it with
 
     $ sudo apt install tmux
 
+CNSA optionally uses InfluxDB to store block data that overflows its internal
+buffer. It will run without an InfluxDB installation, but to take advantage of
+the database capabilities, you'll need to install InfluxDB.
+
+On Mac, with homebrew:
+    
+    $ brew install influxdb-cli
+    $ brew install influxdb@1
+
+On Linux:
+
+    $ wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.10_linux_amd64.tar.gz
+    $ tar xvfz influxdb-1.8.10_linux_amd64.tar.gz
+
+
 ## System Setup & Configuration
 
 Every sampling node 
@@ -134,7 +149,17 @@ First, forward ports from all your sampling nodes to the sink host:
 Note that we are connecting *not* to the `cardano-node` tracing socket, but to
 the new socket re-forwarded by `cardano-tracer`.
 
-Second, start `cnsa-sink`
+Second, start InfluxDB.
+
+On Mac:
+    brew services start influxdb@1
+    
+On Linux:
+    tmux new -s influxdb
+
+     /path/to/influxdb-1.8.10_linux_amd64/usr/bin/influxd
+
+Third, start `cnsa-sink`
 
     tmux new -s sink
     
@@ -250,4 +275,25 @@ where
     seen so far.
   - `slot_penultimate`, of type `gauge`, is the second highest slot number
     for the blocks seen so far.
+
+### Querying InfluxDB
+
+Enter the InfluxDB shell:
+
+On Mac:
+    
+    $ influx v1 shell
+
+On Linux:
+    
+    $ influx
+
+From the InfluxDB shell, you can list the block data that it has stored:
+
+    > use blocks
+    > SELECT * FROM "block-data"
+
+At present, the block data is largely encoded as JSON. Haskell applications are
+well-poised to decode this JSON through the derived `FromJSON` instances of
+`BlockData` and its subsidiaries.
 
