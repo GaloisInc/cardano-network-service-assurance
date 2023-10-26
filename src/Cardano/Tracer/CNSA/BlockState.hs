@@ -94,8 +94,13 @@ updateBlockTimingForSampler
   -> BlockData -> BlockData
 updateBlockTimingForSampler shost update bd = bd{bd_timing= timing}
   where
-  timing = Map.adjust update shost (bd_timing bd)
-  -- FIXME: this should be extended to Possibly so users of can do likewise
+  timing = Map.alter alterBlockTiming shost (bd_timing bd)
+
+  alterBlockTiming =
+    \case
+      Nothing -> Nothing
+      Just bt -> Just (update bt)
+  -- FIXME[R3]: extend to Possibly so callers can do likewise
   -- FIXME: if shost not in Map, need to add & initialize.
 
 updateBlockProps :: (BlockProps -> BlockProps) -> BlockData -> BlockData
@@ -107,14 +112,18 @@ initialBlockData shost bt b s =
              bd_timing= Map.singleton shost bt
            }
 
-initialBlockTiming :: Peer -> UTCTime -> BlockTiming
-initialBlockTiming peer time =
+emptyBlockTiming :: BlockTiming
+emptyBlockTiming =
   BlockTiming {
-    bt_downloadedHeader = Map.singleton peer time,
+    bt_downloadedHeader = Map.empty,
     bt_sendFetchRequest = mempty,
     bt_completedBlockFetch = mempty,
     bt_addedToCurrentChain = Nothing
   }
+
+initialBlockTiming :: Peer -> UTCTime -> BlockTiming
+initialBlockTiming peer time =
+  emptyBlockTiming {bt_downloadedHeader = Map.singleton peer time}
 
 defaultBlockProps :: BlockNo -> SlotNo -> BlockProps
 defaultBlockProps b s =
