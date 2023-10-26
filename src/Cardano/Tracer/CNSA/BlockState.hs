@@ -20,6 +20,7 @@ module Cardano.Tracer.CNSA.BlockState
     addFetchRequest,
     addFetchCompleted,
     addAddedToCurrentChain,
+    modifyBlockStateIOMaybe,
     newBlockStateHdl,
     readBlockStateHdl,
     updateBlockState,
@@ -35,7 +36,6 @@ Secrets kept:
 - `BlockStateHdl` is an `IORef`
 -}
 
--- <<<<<<< HEAD
 import           Cardano.Analysis.API.Ground (Hash)
 import           Cardano.Slotting.Block (BlockNo)
 import           Cardano.Slotting.Slot (SlotNo)
@@ -189,11 +189,10 @@ addAddedToCurrentChain
   -> Int
   -> UTCTime
   -> BlockData -> BlockData
-addAddedToCurrentChain shost msize _len time =
+addAddedToCurrentChain _shost msize _len time =
     updateBlockTiming (\bt->bt{ bt_addedToCurrentChain = Just time})
   . updateBlockProps  (\bp->bp{ bp_size = strictMaybeToMaybe msize})
   -- FIXME: msize vs. _len?? [in current testing: always Nothing]
-  -- why can you ignore _hash?
 
 --------------------------------------------------------------------------------
 -- BlockStateHdl
@@ -217,7 +216,7 @@ updateBlockStateMaybe' (BlockStateHdl ref) =
   atomicModifyIORefMaybe' ref
 
 updateBlockStateByKey :: BlockStateHdl -> Hash -> (BlockData -> BlockData) -> IO ()
-updateBlockStateByKey (BlockStateHdl ref) k f = modifyIORefMaybe ref update
+updateBlockStateByKey (BlockStateHdl ref) k f = modifyIORefIOMaybe ref update
   where
     update (BlockState m) =
       case adjustIfMember f k m of
@@ -226,6 +225,12 @@ updateBlockStateByKey (BlockStateHdl ref) k f = modifyIORefMaybe ref update
           do
             warnMsg ["ignoring TraceObj: can't update unknown hash (either tool old or error): " ++ show k]
             pure Nothing
+
+modifyBlockStateIOMaybe :: BlockStateHdl
+                        -> (BlockState -> IO (Maybe BlockState))
+                        -> IO ()
+modifyBlockStateIOMaybe (BlockStateHdl ref) f =
+  modifyIORefIOMaybe ref f
 
 pruneOverflow :: BlockStateHdl -> IO [(Hash, BlockData)]
 pruneOverflow (BlockStateHdl ref) = atomicModifyIORef' ref prune
@@ -246,14 +251,15 @@ atomicModifyIORefMaybe' ref f = atomicModifyIORef' ref g
           Left  b  -> (a , Just b)
 
 
-modifyIORefMaybe :: IORef a -> (a -> IO (Maybe a)) -> IO ()
-modifyIORefMaybe ref f =
+modifyIORefIOMaybe :: IORef a -> (a -> IO (Maybe a)) -> IO ()
+modifyIORefIOMaybe ref f =
   do
     a <- readIORef ref
     ma <- f a
     case ma of
       Just a' -> writeIORef ref a'
       Nothing -> pure ()
+  -- NOTE: not re-entrant
 
 ---- Map utilities -------------------------------------------------
 

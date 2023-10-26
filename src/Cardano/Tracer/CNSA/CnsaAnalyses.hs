@@ -356,7 +356,8 @@ processBlockStatusAnalysis aArgs state trObj logObj =
       case logObj of
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
             withPeer $ \peer->
-              updateBS (addSeenHeader shost slotno blockno hash peer time)
+              modifyBlockStateIOMaybe blockStateHdl $
+                \bs-> return (Just $ addSeenHeader shost slotno blockno hash peer time bs)
 
         LO.LOBlockFetchClientRequested hash len ->
             withPeer $ \peer->
@@ -412,5 +413,3 @@ instance Log.MetaTrace BlockState'
   severityFor _ _ = Just Info
   documentFor _   = Just "Map, by hash, containing block and propagation info"
   allNamespaces   = [Log.namespaceFor (undefined :: BlockState')]
-
-
