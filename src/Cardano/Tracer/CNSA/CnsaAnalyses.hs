@@ -381,15 +381,12 @@ processBlockStatusAnalysis aArgs state trObj logObj =
         _ -> return ()
 
       where
-        -- updateBS :: (BlockState -> BlockState) -> IO ()
-        -- updateBS = updateBlockState blockStateHdl
-        -- FIXME: ^
 
         updateBSByKey :: Hash -> (BlockData -> Possibly BlockData) -> IO ()
         updateBSByKey = updateBlockStateByKey blockStateHdl
 
         time  = Log.toTimestamp trObj
-        shost = Log.toHostname  trObj -- sampler host
+        shost = Log.toHostname  trObj -- the sampler host
 
         withPeer f =
           case getPeerFromTraceObject trObj of
