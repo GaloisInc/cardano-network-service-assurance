@@ -311,9 +311,10 @@ processBlockStatusAnalysis aArgs state trObj logObj =
   if null overflowList then
     OrigCT.traceWith debugTr "Overflow: none"
   else
-    let write :: (Hash, BlockData) -> IO ()
-        write = maybe (\_ -> pure ()) writeBlockData blockDBHdl
-    in mapM_ write overflowList
+    let toDB = writeBlockData
+        toStdout (hash, blockData) = OrigCT.traceWith debugTr ("Overflow: " ++ show (hash, blockData))
+        write = maybe toStdout toDB blockDBHdl
+    in  mapM_ write overflowList
 
   -- Update Metrics:
   sorted' <- sortBySlot <$> readBlockStateHdl blockStateHdl
