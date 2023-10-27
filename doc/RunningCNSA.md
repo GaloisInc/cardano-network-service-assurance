@@ -276,9 +276,29 @@ where
   - `slot_penultimate`, of type `gauge`, is the second highest slot number
     for the blocks seen so far.
 
-### Querying InfluxDB
+### Retrieving Stored Block Data
 
-Enter the InfluxDB shell:
+#### In Haskell
+
+`Cardano.Tracer.CNSA.BlockState.DB` exports `readBlockData`, which will read all
+entries in the database and decode their JSON bodies into Haskell `BlockData`
+objects. The `delay-demo` application acts as an example client of this
+functionality, reading from the database and applying an aggregation analysis
+over the data. In particular, it calculates the average delay between each
+slot's inherent time and the time when each peer sends each sampler a header for
+a block in that slot.
+
+You can run the application like so:
+    
+    cabal run delay-demo
+
+This will write two JSON files. `block-data.json` contains the JSON encoding of
+the entries in the database, keyed by hash, and `delays.json` contains the
+result of the delay analysis.
+
+#### From InfluxDB Shell
+
+You can also see the "raw" block data entries. Enter the InfluxDB shell:
 
 On Mac:
     
