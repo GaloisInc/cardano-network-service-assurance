@@ -85,6 +85,21 @@ executable cnsa-sink
   if os(windows)
     buildable:          False
 
+executable delay-demo
+  import: project-config
+
+  build-depends:
+    cnsa-sink-lib,
+
+    aeson,
+    containers,
+
+  hs-source-dirs: delays
+
+  main-is: Delays.hs
+
+  ghc-options: -main-is Delays
+
 -- library locli-slice:
 --   this is a small slice (from master) of the cardano-node/bench/locli
 --   package.
