@@ -50,8 +50,7 @@ import           Data.IORef ( IORef,
                    writeIORef)
 import           Data.List (sortOn)
 import qualified Data.Map.Strict as Map
-import           Data.Map.Strict (Map,(!?))
-import           Data.Maybe (fromJust)
+import           Data.Map.Strict (Map)
 import           Data.Maybe.Strict (StrictMaybe, strictMaybeToMaybe)
 import           Data.Ord (Down (..))
 import           Data.Time (UTCTime, diffUTCTime)

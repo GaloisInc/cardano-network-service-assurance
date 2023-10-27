@@ -21,20 +21,14 @@ import           Data.List (isPrefixOf)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import           Data.Text (Text)
-import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,UTCTime
-                           ,NominalDiffTime)
+import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,NominalDiffTime)
 import           GHC.Generics
-import           Network.HostName (HostName)
-import           System.IO (hFlush, stdout)
 
 -- package contra-tracer: (not to be confused with Cardano.Tracer....)
 import qualified "contra-tracer" Control.Tracer as OrigCT
 
 -- package aeson:
 import           Data.Aeson
-
--- package cardano-strict-containers:
-import           Data.Maybe.Strict
 
 -- cardano packages:
 import           Cardano.Logging.Trace
@@ -61,7 +55,6 @@ import           Cardano.Tracer.CNSA.BlockState.DB (BlockDBHandle, initializeBlo
 import           Cardano.Tracer.CNSA.ParseLogs
 import           Cardano.Utils.Log
 import           Cardano.Utils.SlotTimes
-import qualified Data.Map as Map
 
 
 ------------------------------------------------------------------------------
