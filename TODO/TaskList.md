@@ -5,16 +5,16 @@
         bytes over time and bandwidth as a function of time*
         (suggested by Marcin S on 2023-09-11).
         
-  * [ ] Update the documentation (particularly capturing Sam's journey
+  * [x] Update the documentation (particularly capturing Sam's journey
         in getting CNSA running)
         
-  * [ ] Update the code to address Marcin's code review (see
+  * [x] Update the code to address Marcin's code review (see
     2023-08-11-cardano-node-service-assurance-review.md)
     - [x] Implement the straightforward code improvements.
-    - [ ] Ensure any un-addressed asepects of code review are captured
+    - [x] Ensure any un-addressed asepects of code review are captured
           somewhere.
     
-  * [ ] Add InfluxDB database backend (Sam)
+  * [x] Add InfluxDB database backend (Sam)
             
 ## Priority Two Goals ##
 

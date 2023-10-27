@@ -65,12 +65,6 @@ At some stage more `TracerConfig` entries should be exposed in options, e.g.
 `networkMagic` (to monitor testnets).
 
 
-### Future work
-
-Currently all data is stored in an `IORef`.  The data will grow with
-blockchain.  The more nodes the service tracks the faster it will grow, so
-eventually this data will be needed to be stored in a data base.
-
 ###
 
 There are various FIXMEs in the code.  Should they be turned into issues?
