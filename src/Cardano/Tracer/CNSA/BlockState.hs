@@ -3,9 +3,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use forM_" #-}
+{-# LANGUAGE TupleSections #-}
 
 module Cardano.Tracer.CNSA.BlockState
   ( BlockData (..),
@@ -26,7 +24,8 @@ module Cardano.Tracer.CNSA.BlockState
     updateBlockState,
     updateBlockStateByKey,
     updateBlockStateMaybe',
-    pruneOverflow
+    pruneOverflow,
+    averageHeaderDownloadDelays,
   )
 where
 
@@ -36,11 +35,12 @@ Secrets kept:
 - `BlockStateHdl` is an `IORef`
 -}
 
-import           Cardano.Analysis.API.Ground (Hash)
+import           Cardano.Analysis.API.Ground (Hash, NominalDiffTime)
 import           Cardano.Slotting.Block (BlockNo)
 import           Cardano.Slotting.Slot (SlotNo)
 import           Cardano.Tracer.CNSA.ParseLogs (Peer,Sampler)
 import           Cardano.Utils.Log (warnMsg,Possibly)
+import           Cardano.Utils.SlotTimes (slotStart)
 import           Data.Aeson (ToJSON, FromJSON)
 import           Data.IORef ( IORef,
                    atomicModifyIORef',
@@ -54,7 +54,7 @@ import           Data.Map.Strict (Map,(!?))
 import           Data.Maybe (fromJust)
 import           Data.Maybe.Strict (StrictMaybe, strictMaybeToMaybe)
 import           Data.Ord (Down (..))
-import           Data.Time (UTCTime)
+import           Data.Time (UTCTime, diffUTCTime)
 import           GHC.Generics (Generic)
 
 
@@ -332,3 +332,47 @@ adjustIfMember2 f k =
         Nothing -> Left ["key '" ++ show k ++"' not in Map"]
         Just a  -> fmap Just (f a))
     k
+
+-- | Collect the values found at each key in the input maps. The order of the
+-- values in the result is the same as their order in the input.
+--
+-- In other words, `catMaybes (map (\m -> m Map.!? k) ms) == mapSequence ms
+-- Map.! k`, assuming `k` is in at least one of the input maps.
+mapSequence :: Ord k => [Map k v] -> Map k [v]
+mapSequence maps = (\xs -> xs []) <$> Map.unionsWith (.) [fmap (:) m | m <- maps]
+
+-- | `k` maps to `v / n` in the output iff `k` maps to `n` `v`s across the
+-- inputs, where `n > 0`. If `n == 0`, `k` does not exist in the output.
+averageByKey :: (Ord k, Fractional v) => [Map k v] -> Map k v
+averageByKey maps = fmap divide (Map.unionsWith add counted)
+  where
+    counted = map (fmap (, 1)) maps
+    add (diff1, count1) (diff2, count2) = (diff1 + diff2, count1 + count2)
+    divide (diff, count) = diff / count
+
+-- | In the output, `k1` maps to the `averageByKey` of its values across the
+-- input.
+multiAverageByKey :: (Ord k1, Ord k2, Fractional v) => [Map k1 (Map k2 v)] -> Map k1 (Map k2 v)
+multiAverageByKey delays = fmap averageByKey (mapSequence delays)
+
+--------------------------------------------------------------------------------
+-- Aggregate analyses
+
+-- | The delay from a slot's genesis to when a peer sent each `Sampler` a
+-- header, averaged over a number of `BlockData` values.
+--
+-- An average found at the keys `sampler` and `peer` incorporates time values if
+-- and only if they were seen at the keys `sampler` and `peer` in each of the
+-- `BlockData` values.
+averageHeaderDownloadDelays :: [BlockData] -> Map Sampler (Map Peer NominalDiffTime)
+averageHeaderDownloadDelays bds = multiAverageByKey (map headerDownloadDelays bds)
+
+-- | The delay from a slot's genesis to when each peer sent each `Sampler` a
+-- header.
+headerDownloadDelays :: BlockData -> Map Sampler (Map Peer NominalDiffTime)
+headerDownloadDelays blockData = downloadDelays
+  where
+    downloadTimes = fmap bt_downloadedHeader (bd_timing blockData)
+    downloadDelays = fmap (fmap delay) downloadTimes
+    slotTime = slotStart (bp_slot (bd_props blockData))
+    delay downloadTime = diffUTCTime downloadTime slotTime
