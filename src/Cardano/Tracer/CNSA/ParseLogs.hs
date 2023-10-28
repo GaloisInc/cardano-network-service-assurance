@@ -12,6 +12,7 @@ module Cardano.Tracer.CNSA.ParseLogs
  ( getLogBody
  , getPeerFromTraceObject
  , getFieldFromTraceObject
+ , getFieldFromTraceObject'
  , LogBody(..)
  , EtcLogBody(..)
  , Addr
@@ -70,13 +71,13 @@ getFieldFromTraceObject
   -> (Value -> Parser a)
   -> Log.TraceObject
   -> Either String a
-getFieldFromTraceObject keys parse trObj =
+getFieldFromTraceObject keys parse' trObj =
   do
   x <- Log.toMachine trObj `maybeToEither'` "no 'toMachine' entry"
   flip decodeAndParse x $ \x'->
     do
     o <- projectField keys x'
-    parse o
+    parse' o
 
 getFieldFromTraceObject' 
   :: FromJSON a
@@ -85,7 +86,6 @@ getFieldFromTraceObject'
   -> Either String a
 getFieldFromTraceObject' ks =
   getFieldFromTraceObject ks parseJSON
-
   
 projectField :: [Key] -> Value -> Parser Value
 projectField []     = return
@@ -94,18 +94,9 @@ projectField (k:ks) = withObject "Object" $ \o->
 
 getPeerFromTraceObject :: Log.TraceObject -> Either String Peer
 getPeerFromTraceObject trObj =
-  do
-  x <- Log.toMachine trObj `maybeToEither'` "no 'toMachine' entry"
-  decodeAndParse pPeer x
-    
-pPeer :: Object -> Parser Peer
-pPeer o =
-  do
-  peer   <- o .: "peer"
-  s      <- peer .: "connectionId"
-  [_,p]  <- return $ words s
-  return p
-
+  (\s-> case words s of {[_,p] -> p; _ -> error "getPeer"})
+  <$>
+  getFieldFromTraceObject' ["peer","connectionId"] trObj
   
 getLogBody :: Log.TraceObject -> Either String LogBody
 getLogBody trObj =
