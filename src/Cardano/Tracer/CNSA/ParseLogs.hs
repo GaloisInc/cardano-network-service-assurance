@@ -11,6 +11,7 @@
 module Cardano.Tracer.CNSA.ParseLogs
  ( getLogBody
  , getPeerFromTraceObject
+ , getFieldFromTraceObject
  , LogBody(..)
  , EtcLogBody(..)
  , Addr
@@ -64,6 +65,33 @@ data EtcLogBody =
 
 ---- Functions -----------------------------------------------------
 
+getFieldFromTraceObject
+  :: [Key]               -- dive into the field
+  -> (Value -> Parser a)
+  -> Log.TraceObject
+  -> Either String a
+getFieldFromTraceObject keys parse trObj =
+  do
+  x <- Log.toMachine trObj `maybeToEither'` "no 'toMachine' entry"
+  flip decodeAndParse x $ \x'->
+    do
+    o <- projectField keys x'
+    parse o
+
+getFieldFromTraceObject' 
+  :: FromJSON a
+  => [Key]
+  -> Log.TraceObject
+  -> Either String a
+getFieldFromTraceObject' ks =
+  getFieldFromTraceObject ks parseJSON
+
+  
+projectField :: [Key] -> Value -> Parser Value
+projectField []     = return
+projectField (k:ks) = withObject "Object" $ \o->
+                         (o .: k) >>= projectField ks
+
 getPeerFromTraceObject :: Log.TraceObject -> Either String Peer
 getPeerFromTraceObject trObj =
   do
@@ -71,9 +99,9 @@ getPeerFromTraceObject trObj =
   decodeAndParse pPeer x
     
 pPeer :: Object -> Parser Peer
-pPeer v =
+pPeer o =
   do
-  peer   <- v .: "peer"
+  peer   <- o .: "peer"
   s      <- peer .: "connectionId"
   [_,p]  <- return $ words s
   return p
@@ -99,9 +127,9 @@ getEtcLogBody trObj =
     
             
 pPeersFromNodeKernel :: Object -> Parser EtcLogBody
-pPeersFromNodeKernel v =
+pPeersFromNodeKernel o =
   do
-  peers <- v .: "peers"
+  peers <- o .: "peers"
   xs <- mapM pPeer2 peers
   return $ PeersFromNodeKernel xs
 
@@ -119,12 +147,12 @@ pPeersFromNodeKernel v =
 maybeToEither' :: Maybe b -> a -> Either a b
 maybeToEither' = flip maybeToEither
 
-
-decodeAndParse :: (Object -> Parser a) -> Text.Text -> Either String a
+decodeAndParse
+  :: FromJSON a => (a -> Parser b) -> Text.Text -> Either String b
 decodeAndParse p s =
   case decode (textToLazyBS s) of
-    Just (Object o) ->
-        case parseEither p o of
+    Just v ->
+        case parseEither p v of
               Right x  -> Right x
               Left  s' -> Left $ "error parsing body: " ++ s'
     _               -> Left "cannot parse into json" 
