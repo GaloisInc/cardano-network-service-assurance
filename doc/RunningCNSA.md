@@ -157,7 +157,7 @@ On Mac:
 On Linux:
     tmux new -s influxdb
 
-     /path/to/influxdb-1.8.10_linux_amd64/usr/bin/influxd
+     /path/to/influxdb-1.8.10-1/usr/bin/influxd
 
 Third, start `cnsa-sink`
 
