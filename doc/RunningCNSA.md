@@ -31,11 +31,11 @@ It is highly recommended to use `autossh` for port forwarding
 (rather than plain `ssh`), it is a far more robust solution.
 Install `autossh` on `$SINK_NODE`:
 
-    $ sudo apt install autossh
+    sudo apt install autossh
 
 In the following we use `tmux` for convenience; install it with
 
-    $ sudo apt install tmux
+    sudo apt install tmux
 
 CNSA optionally uses InfluxDB to store block data that overflows its internal
 buffer. It will run without an InfluxDB installation, but to take advantage of
@@ -43,13 +43,13 @@ the database capabilities, you'll need to install InfluxDB.
 
 On Mac, with homebrew:
     
-    $ brew install influxdb-cli
-    $ brew install influxdb@1
+    brew install influxdb-cli
+    brew install influxdb@1
 
 On Linux:
 
-    $ wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.10_linux_amd64.tar.gz
-    $ tar xvfz influxdb-1.8.10_linux_amd64.tar.gz
+    wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.10_linux_amd64.tar.gz
+    tar xvfz influxdb-1.8.10_linux_amd64.tar.gz
 
 
 ## System Setup & Configuration
@@ -302,16 +302,16 @@ You can also see the "raw" block data entries. Enter the InfluxDB shell:
 
 On Mac:
     
-    $ influx v1 shell
+    influx v1 shell
 
 On Linux:
     
-    $ influx
+    influx
 
 From the InfluxDB shell, you can list the block data that it has stored:
 
-    > use blocks
-    > SELECT * FROM "block-data"
+    use blocks
+    SELECT * FROM "block-data"
 
 At present, the block data is largely encoded as JSON. Haskell applications are
 well-poised to decode this JSON through the derived `FromJSON` instances of
