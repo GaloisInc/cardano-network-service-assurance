@@ -3,7 +3,7 @@
 module Main(main) where
 
 import System.Environment (getArgs)
-import Cardano.Tracer.CNSA.CnsaSink
+import Cardano.Tracer.CNSA.Run.CnsaSink
 
 main :: IO ()
 main = getArgs >>= \case

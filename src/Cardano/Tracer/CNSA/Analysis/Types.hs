@@ -1,5 +1,55 @@
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE PackageImports #-}
+
 module Cardano.Tracer.CNSA.Analysis.Types where
-  
+
+-- base:
+import           Data.List (isPrefixOf)
+import qualified Data.Map as Map
+import           Data.Set (Set)
+import           Data.Text (Text)
+
+-- package contra-tracer: (not to be confused with Cardano.Tracer....)
+import qualified "contra-tracer" Control.Tracer as OrigCT
+
+-- package aeson:
+import           Data.Aeson
+
+-- cardano packages:
+import           Cardano.Logging.Trace
+import           Cardano.Logging.Tracer.DataPoint
+import qualified Cardano.Logging.Types as Log
+import           Cardano.Slotting.Slot
+import           Cardano.Tracer.MetaTrace -- hiding (traceWith)
+import           Trace.Forward.Utils.DataPoint
+
+-- package locli: (or slice thereof)
+import qualified Cardano.Unlog.LogObject as LO
+import           Cardano.Analysis.API.Ground (Hash)
+
+-- package prometheus:
+import qualified System.Metrics.Prometheus.Concurrent.Registry as PR
+import qualified System.Metrics.Prometheus.Metric.Counter      as PC
+import qualified System.Metrics.Prometheus.Metric.Gauge        as PG
+import           System.Metrics.Prometheus.Http.Scrape         as PS
+import qualified System.Metrics.Prometheus.Metric.Histogram    as PH
+
+-- local:
+import           Cardano.Utils.Log
+import           Cardano.Utils.SlotTimes
+
+------------------------------------------------------------------------------
+-- Types
+
+data AnalysisArgs = AnalysisArgs
+  { aaRegistry :: PR.Registry             -- ^ prometheus registry
+  , aaTraceDP  :: Trace IO DataPoint      -- ^ toplevel datapoint trace
+  , aaDebugTr  :: OrigCT.Tracer IO String -- ^ cnsa debugging tracer
+  -- TODO: see Improvement 3. below, replace stdout with this:
+  -- , aaLogTr    :: OrigCT.Tracer IO String -- ^ the log for this analysis
+  -- ?
+  }
+
 --------------------------------------------------------------------------------
 -- Namespaces
 --
