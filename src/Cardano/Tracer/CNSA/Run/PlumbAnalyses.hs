@@ -50,8 +50,9 @@ import           System.Metrics.Prometheus.Http.Scrape         as PS
 import qualified System.Metrics.Prometheus.Metric.Histogram    as PH
 
 -- local to this pkg:
-import           Cardano.Tracer.CNSA.BlockState
-import           Cardano.Tracer.CNSA.BlockState.DB (BlockDBHandle, initializeBlockDB, writeBlockData)
+-- FIXME1:
+import           Cardano.Tracer.CNSA.Analysis.Catalog.Types
+import           Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB (BlockDBHandle, initializeBlockDB, writeBlockData)
 import           Cardano.Tracer.CNSA.ParseLogs
 import           Cardano.Utils.Log
 import           Cardano.Utils.SlotTimes

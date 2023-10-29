@@ -8,7 +8,7 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Cardano.Tracer.CNSA.ParseLogs
+module Cardano.Tracer.CNSA.Run.ParseLogs
  ( getLogBody
  , getPeerFromTraceObject
  , getFieldFromTraceObject

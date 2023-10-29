@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Cardano.Tracer.CNSA.BlockState.DB
+module Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB
   ( BlockDBHandle,
     initializeBlockDB,
     readBlockData,

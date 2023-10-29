@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 
-module Cardano.Tracer.CNSA.CnsaSink
+module Cardano.Tracer.CNSA.Run.CnsaSink
   ( runCnsaSink
   )
 where
@@ -32,7 +32,7 @@ import           Cardano.Tracer.MetaTrace
 import           Cardano.Tracer.Utils
 
 -- local:
-import           Cardano.Tracer.CNSA.CnsaAnalyses (mkCnsaSinkAnalyses)
+import           Cardano.Tracer.CNSA.Run.PlumbAnalyses (mkCnsaSinkAnalyses)
 
 
 runCnsaSink :: [FilePath] -> IO ()
