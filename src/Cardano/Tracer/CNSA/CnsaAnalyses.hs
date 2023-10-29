@@ -147,6 +147,7 @@ data Analysis = forall state. Analysis
 analyses :: [Analysis]
 analyses = [ countTraceLogsAnalysis
            , blockStatusAnalysis
+           , blockFetchBandwidthAnalysis
            ]
 
 ------------------------------------------------------------------------------
@@ -229,6 +230,48 @@ countTraceLogsAnalysis =
     pto _ metric_traceCtr _trobj _parsedlog =
       PC.inc metric_traceCtr
 
+
+------------------------------------------------------------------------------
+-- block fetch bandwidth analysis:
+--
+
+blockFetchBandwidthAnalysis :: Analysis
+blockFetchBandwidthAnalysis =
+  Analysis{ aName = "block fetch bandwidth"
+          , aTraceNamespaces = NoFilter
+          , aInitialize = initialize
+          , aProcessTraceObject = ptoBlockFetchBandwidthAnalysis
+          }
+  where
+    initialize args = do
+      metric_byteCtr <-
+        PR.registerCounter "blockbytes_downloaded" mempty (aaRegistry args)
+      return (Right metric_byteCtr)
+
+ptoBlockFetchBandwidthAnalysis
+  :: AnalysisArgs
+  -> PC.Counter
+  -> Log.TraceObject -> LO.LOBody -> IO ()
+ptoBlockFetchBandwidthAnalysis aArgs metric_byteCtr trObj logObj =
+  -- FIXME: change to be compute "per sampler".
+  --   FIXME: create abstractions over "sampler separated" analyses
+  case logObj of
+    LO.LOBlockFetchClientCompletedFetch hash ->
+      case getFieldFromTraceObject' ["size"] trObj of
+        Left s   -> warnMsg ["in BlockFetch.Client.Completed.Fetch:", s]
+        Right sz -> receivedBlockSize hash sz
+    _ -> return ()
+
+  where
+    debugTr = aaDebugTr aArgs
+    receivedBlockSize hash blockSize =
+      do
+      PC.add blockSize metric_byteCtr
+      OrigCT.traceWith debugTr $ unwords
+        ["block size:", shost, show hash, "  size:  ", show blockSize]
+
+    -- time  = Log.toTimestamp trObj
+    shost = Log.toHostname  trObj -- the sampler host
 
 ------------------------------------------------------------------------------
 -- The block status analysis:
