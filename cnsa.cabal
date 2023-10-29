@@ -48,7 +48,8 @@ library cnsa-sink-lib
                         Cardano.Tracer.CNSA.Run.PlumbAnalyses
                         Cardano.Utils.Log
                         Cardano.Utils.SlotTimes
-
+                        Util.Data.Map
+  
   other-modules:
                         Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
                         Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB
