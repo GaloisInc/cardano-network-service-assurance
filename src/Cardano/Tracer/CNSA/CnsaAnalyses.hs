@@ -240,7 +240,7 @@ blockFetchBandwidthAnalysis =
   Analysis{ aName = "block fetch bandwidth"
           , aTraceNamespaces = NoFilter
           , aInitialize = initialize
-          , aProcessTraceObject = ptoBlockFetchBandwidthAnalysis
+          , aProcessTraceObject = procTrObjBlockFetchBandwidthAnalysis
           }
   where
     initialize args = do
@@ -248,11 +248,11 @@ blockFetchBandwidthAnalysis =
         PR.registerCounter "blockbytes_downloaded" mempty (aaRegistry args)
       return (Right metric_byteCtr)
 
-ptoBlockFetchBandwidthAnalysis
+procTrObjBlockFetchBandwidthAnalysis
   :: AnalysisArgs
   -> PC.Counter
   -> Log.TraceObject -> LO.LOBody -> IO ()
-ptoBlockFetchBandwidthAnalysis aArgs metric_byteCtr trObj logObj =
+procTrObjBlockFetchBandwidthAnalysis aArgs metric_byteCtr trObj logObj =
   -- FIXME: change to be compute "per sampler".
   --   FIXME: create abstractions over "sampler separated" analyses
   case logObj of
