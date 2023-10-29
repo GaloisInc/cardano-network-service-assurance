@@ -15,19 +15,9 @@ where
 
 -- base:
 import           Control.Monad
-import           Data.Functor.Contravariant
-import           Data.List (isPrefixOf)
-import qualified Data.Map as Map
-import           Data.Set (Set)
-import           Data.Text (Text)
-import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,NominalDiffTime)
-import           GHC.Generics
 
 -- package contra-tracer: (not to be confused with Cardano.Tracer....)
 import qualified "contra-tracer" Control.Tracer as OrigCT
-
--- package aeson:
-import           Data.Aeson
 
 -- cardano packages:
 import qualified Cardano.Logging.Types as Log
@@ -47,6 +37,7 @@ import           Cardano.Tracer.CNSA.Analysis.Types
 import           Cardano.Tracer.CNSA.Analysis.Catalog (analyses)
 import           Cardano.Tracer.CNSA.Run.ParseLogs
 import           Cardano.Utils.Log
+
 
 ------------------------------------------------------------------------------
 -- Analysis abstractions:
