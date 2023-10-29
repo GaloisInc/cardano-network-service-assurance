@@ -11,7 +11,7 @@ module Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB
 where
 
 import Cardano.Analysis.API.Ground (Hash (..))
-import Cardano.Tracer.CNSA.BlockState
+import Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
 import Control.Exception (SomeException, try)
 import Data.Aeson (Value (..), eitherDecodeStrict)
 import Data.Aeson.Text (encodeToLazyText)

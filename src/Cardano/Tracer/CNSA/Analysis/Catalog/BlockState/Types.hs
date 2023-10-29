@@ -5,7 +5,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
-module Cardano.Tracer.CNSA.BlockState
+module Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
   ( BlockData (..),
     BlockProps (..),
     BlockTiming (..),
@@ -38,7 +38,7 @@ Secrets kept:
 import           Cardano.Analysis.API.Ground (Hash, NominalDiffTime)
 import           Cardano.Slotting.Block (BlockNo)
 import           Cardano.Slotting.Slot (SlotNo)
-import           Cardano.Tracer.CNSA.ParseLogs (Peer,Sampler)
+import           Cardano.Tracer.CNSA.Run.ParseLogs (Peer,Sampler)
 import           Cardano.Utils.Log (warnMsg,Possibly)
 import           Cardano.Utils.SlotTimes (slotStart)
 import           Data.Aeson (ToJSON, FromJSON)

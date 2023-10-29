@@ -40,6 +40,7 @@ library cnsa-sink-lib
   exposed-modules:
                         Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
                         Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB
+                        Cardano.Tracer.CNSA.Analysis.Types
                         Cardano.Tracer.CNSA.Run.CnsaSink
                         Cardano.Tracer.CNSA.Run.ParseLogs
                         Cardano.Tracer.CNSA.Run.PlumbAnalyses
