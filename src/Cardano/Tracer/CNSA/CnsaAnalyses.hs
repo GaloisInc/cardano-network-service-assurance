@@ -210,7 +210,7 @@ mkCnsaSinkAnalyses traceDP debugTr =
 
 
 ------------------------------------------------------------------------------
--- a trivial proof of life analysis:
+-- a trivial "proof of life" analysis:
 --
 
 countTraceLogsAnalysis :: Analysis
@@ -354,17 +354,17 @@ processBlockStatusAnalysis aArgs state trObj logObj =
     updateBlockStateFromTraceObject =
       case logObj of
         LO.LOChainSyncClientSeenHeader slotno blockno hash ->
-            withPeer $ \peer->
+            withPeer trObj $ \peer->
               modifyBlockStateIOMaybe blockStateHdl $
                 addSeenHeader shost slotno blockno hash peer time
 
         LO.LOBlockFetchClientRequested hash len ->
-            withPeer $ \peer->
+            withPeer trObj $ \peer->
               updateBSByKey hash
                 (addFetchRequest shost len peer time)
 
         LO.LOBlockFetchClientCompletedFetch hash ->
-            withPeer $ \peer->
+            withPeer trObj $ \peer->
               updateBSByKey hash
                 (addFetchCompleted shost peer time)
 
@@ -382,11 +382,6 @@ processBlockStatusAnalysis aArgs state trObj logObj =
         time  = Log.toTimestamp trObj
         shost = Log.toHostname  trObj -- the sampler host
 
-        withPeer f =
-          case getPeerFromTraceObject trObj of
-            Left s  -> warnMsg ["expected peer, ignoring trace: " ++ s]
-            Right p -> f p
-
     debugTraceBlockData nm es =
       do
         OrigCT.traceWith debugTr (nm ++ " block data:")
@@ -395,6 +390,12 @@ processBlockStatusAnalysis aArgs state trObj logObj =
         -- FIXME[F3]: make fancier
 
     cvtTime = fromRational . toRational . nominalDiffTimeToSeconds
+
+withPeer :: Log.TraceObject -> (Peer -> IO ()) -> IO ()
+withPeer trObj f =
+  case getPeerFromTraceObject trObj of
+    Left s  -> warnMsg ["expected peer, ignoring traceObj: " ++ s]
+    Right p -> f p
 
 
 ---- Boilerplate for BlockState' Datapoint -------------------------
