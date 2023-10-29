@@ -2,8 +2,8 @@
 
 module Delays where
 
-import Cardano.Tracer.CNSA.BlockState (averageHeaderDownloadDelays)
-import Cardano.Tracer.CNSA.BlockState.DB (initializeBlockDB, readBlockData)
+import Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types (averageHeaderDownloadDelays)
+import Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB (initializeBlockDB, readBlockData)
 import qualified Data.Aeson as JSON
 import qualified Data.Map as Map
 import System.Environment (getArgs)

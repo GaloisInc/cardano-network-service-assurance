@@ -40,6 +40,8 @@ library cnsa-sink-lib
   exposed-modules:
                         Cardano.Tracer.CNSA.Analysis.Catalog
                         Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Analysis
+                        Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB
+                        Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
                         Cardano.Tracer.CNSA.Analysis.Catalog.CountTraceLogs.Analysis
                         Cardano.Tracer.CNSA.Analysis.Catalog.SamplerBandwidth.Analysis
                         Cardano.Tracer.CNSA.Analysis.Types
@@ -51,8 +53,6 @@ library cnsa-sink-lib
                         Util.Data.Map
   
   other-modules:
-                        Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
-                        Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB
                                               
   build-depends:        aeson
                       , async-extras
