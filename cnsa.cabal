@@ -43,7 +43,7 @@ library cnsa-sink-lib
                         Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB
                         Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
                         Cardano.Tracer.CNSA.Analysis.Catalog.CountTraceLogs.Analysis
-                        Cardano.Tracer.CNSA.Analysis.Catalog.SamplerBandwidth.Analysis
+                        Cardano.Tracer.CNSA.Analysis.Catalog.Throughput.Analysis
                         Cardano.Tracer.CNSA.Analysis.Types
                         Cardano.Tracer.CNSA.Run.CnsaSink
                         Cardano.Tracer.CNSA.Run.ParseLogs

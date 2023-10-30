@@ -8,7 +8,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Cardano.Tracer.CNSA.Analysis.Catalog.SamplerBandwidth.Analysis
+module Cardano.Tracer.CNSA.Analysis.Catalog.Throughput.Analysis
   ( analysis
   )
 where
@@ -37,15 +37,15 @@ import           Cardano.Tracer.CNSA.Run.ParseLogs
 import           Cardano.Utils.Log
 
 ------------------------------------------------------------------------------
--- block fetch bandwidth analysis for each sampler
+-- block fetch throughput analysis for each sampler
 --
 
 analysis :: Analysis
 analysis =
-  Analysis{ aName = "block fetch bandwidth"
+  Analysis{ aName = "block fetch throughput"
           , aTraceNamespaces = NoFilter
           , aInitialize = initialize
-          , aProcessTraceObject = procTrObjBlockFetchBandwidthAnalysis
+          , aProcessTraceObject = procTrObjBlockFetchThroughputAnalysis
           }
   where
 
@@ -54,12 +54,12 @@ analysis =
         PR.registerCounter "blockbytes_downloaded" mempty (aaRegistry args)
       return (Right metric_byteCtr)
 
-procTrObjBlockFetchBandwidthAnalysis
+procTrObjBlockFetchThroughputAnalysis
   :: AnalysisArgs
   -> PC.Counter
   -> Log.TraceObject -> LO.LOBody -> IO ()
-procTrObjBlockFetchBandwidthAnalysis aArgs metric_byteCtr trObj logObj =
-  -- FIXME: change to be compute "per sampler".
+procTrObjBlockFetchThroughputAnalysis aArgs metric_byteCtr trObj logObj =
+  -- FIXME: change to be computed "per sampler".
   case logObj of
     LO.LOBlockFetchClientCompletedFetch hash ->
       case getFieldFromTraceObject' ["size"] trObj of
