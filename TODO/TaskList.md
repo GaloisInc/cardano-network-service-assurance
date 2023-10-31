@@ -1,8 +1,8 @@
 # Task List #
 ## Goals for Fall 2023 ##
 
-  * [ ] Add new CNSA analysis for *progress of syncing, e.g. fetched
-        bytes over time and bandwidth as a function of time*
+  * [x] Add new CNSA analysis for *progress of syncing, e.g. fetched
+        bytes over time and throughput as a function of time*
         (suggested by Marcin S on 2023-09-11).
         
   * [x] Update the documentation (particularly capturing Sam's journey
