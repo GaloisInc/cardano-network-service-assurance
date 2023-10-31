@@ -46,6 +46,8 @@
     - make them more "plugin"-like
     - more automated: then generate config files, generate documentation.
 
+  * [ ] Extend the "Throughput" analysis to support a datapoint interface.
+
 ## Supporting the Use/Application of CNSA ##
 
 Objective here: Make the the CNSA easier for users and the community
