@@ -13,10 +13,8 @@ ecosystem, this project could benefit from them.
 ### Implemented analyses
 
 * `header` arrival times
-* times when a peer requests a block (fetch request).  We only record who
-  requests the block but we don't store the sender (is this right? or is this the other way around).
-* times when we downloaded a block from a peer (as above we only get the peer
-  that requested the block)
+* times when a sampler requests a block (fetch request).
+* times when we downloaded a block from a peer
 * block adoption times,  sizes of blocks and length of the blockchain.
 
 #### Prometheus metrics
@@ -26,17 +24,6 @@ ecosystem, this project could benefit from them.
 * delay histogram 
 
 ### `Cardano.Tracer.CNSA.CnsaAnayses` module
-
-#### `BlockState`
-
-```
-type BlockState = Map Hash BlockData
-```
-
-This assumes that there are no `Hash` collisions on the chain.  I'd expect
-that eventually there will be? If if we use `Point` instead (basically a tuple
-of `SlotNo` and `Hash`), we wouldn't have that problem.
-
 ####
 
 Quite likely all records should be strict as well.

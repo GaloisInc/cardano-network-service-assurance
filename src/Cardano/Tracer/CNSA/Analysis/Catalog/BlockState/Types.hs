@@ -138,13 +138,22 @@ defaultBlockProps b s =
 --
 -- Invariant:
 --   size of the Map <= blockStateMax
+--
+-- Marcin noted:
+--   This assumes that there are no `Hash` collisions on the chain.
+--   I'd expect that eventually there will be? If if we use `Point`
+--   instead (basically a tuple of `SlotNo` and `Hash`), we wouldn't
+--   have that problem.
+-- However,
+--   for our purposes here, we only need avoid Hash collisions for the
+--   last `blockStateMax` blocks.  As restructuring the code to be
+--   (SlotNo,Hask) would be a bit tedious and obfuscating, we choose
+--   to leave the key of the Map to just Hash.
 
 newtype BlockState = BlockState (Map Hash BlockData)
   deriving stock (Eq, Generic, Ord, Show)
   deriving newtype (Monoid, Semigroup)
   deriving anyclass (ToJSON)
-
--- FIXME[F2]: See Marcin's review comments re Hash, add comments & justifications
 
 -- | the maximum size of the Map in BlockState
 blockStateMax :: Int
