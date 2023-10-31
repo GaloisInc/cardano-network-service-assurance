@@ -91,7 +91,7 @@ procTrObjBlockFetchThroughputAnalysis args st trObj logObj =
               return $ Map.adjust (\sd->sd{timeStamp=time}) shost m
           Nothing -> do
               cntr <- PR.registerCounter
-                        "downloaded_blocks_total_bytes"
+                        "blockfetching_total_bytes"
                         (PR.addLabel "host" (T.pack shost) mempty)
                         (aaRegistry args)
               return $ Map.insert shost (SS cntr time) m
