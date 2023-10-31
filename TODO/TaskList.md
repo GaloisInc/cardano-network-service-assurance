@@ -36,13 +36,13 @@
   * [ ] Extend logging of cnsa-sink to handle log-rotation, etc. using
         code from cardano-tracer library.
 
-  * [ ] code improvement: remove dependence on locli source code,
+  * [ ] Code improvement: remove dependence on locli source code,
         capture exactly what assumptions/dependences on the log files
         
-  * [ ] make trace log "dispatching" to analyses more efficient: parse
+  * [ ] Make trace log "dispatching" to analyses more efficient: parse
         once, dispatch once.
         
-  * [ ] improve how we add analyses
+  * [ ] Improve how we add analyses
     - make them more "plugin"-like
     - more automated: then generate config files, generate documentation.
 
