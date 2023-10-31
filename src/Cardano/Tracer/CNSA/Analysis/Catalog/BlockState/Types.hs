@@ -131,7 +131,8 @@ defaultBlockProps b s =
     bp_size    = Nothing
   }
 
---------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+--
 -- BlockState
 
 -- | A collection of `BlockData` values, keyed by `Hash`es
@@ -262,7 +263,7 @@ updateBlockStateByKey (BlockStateHdl ref) k f =
   modifyIORefIOMaybe ref update
   where
     update (BlockState m) =
-      case adjustIfMember2 f k m of
+      case adjustIfMember f k m of
         Right m' -> pure (Just (BlockState m'))
         Left ss  -> warnMsg ss >> pure Nothing
 

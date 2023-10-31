@@ -20,23 +20,12 @@ splitMapOn keep order m = (Map.fromList keepers, overflow)
         sortOn (Down . order . snd) $
           Map.toList m
 
--- | Adjust the value by the function if the key exists, or produce Nothing
--- otherwise.
---
--- >>> adjustIfMember (+ 1) "one" (Map.singleton "two" 2)
--- Nothing
---
--- >>> adjustIfMember (+ 1) "one" (Map.singleton "one" 1)
--- Just (Map.fromList [("one", 2)])
-adjustIfMember :: Ord k => (a -> a) -> k -> Map k a -> Maybe (Map k a)
-adjustIfMember f = Map.alterF (fmap (Just . f))
-
-
--- | similar to the last but ... (FIXME: doc!)
-adjustIfMember2 :: (Show k, Ord k)
-                => (a -> Either [String] a)
-                -> k -> Map k a -> Either [String] (Map k a)
-adjustIfMember2 f k =
+-- | Adjust the value by the adjust function if the key exists, or produce
+-- Left otherwise.
+adjustIfMember :: (Show k, Ord k)
+               => (a -> Either [String] a)
+               -> k -> Map k a -> Either [String] (Map k a)
+adjustIfMember f k =
   Map.alterF
     (\case
         Nothing -> Left ["key '" ++ show k ++"' not in Map"]

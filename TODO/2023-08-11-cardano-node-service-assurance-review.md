@@ -1,5 +1,4 @@
 # Cardano Node Service Assurance Review
-
 ## Notes
 
 `Cardano.Tracer.CNSA.ParseLogs`: it would be nice to have tests for the
