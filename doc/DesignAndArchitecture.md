@@ -131,4 +131,8 @@ of EKG data, etc.
 
 ### Further Details
 
-For yet further details, refer to [Spinning Up and Using CNSA](RunningCNSA.md)
+For further details on running CNSA, refer to [Spinning Up and Using
+CNSA](RunningCNSA.md).
+
+For details on some internals of CNSA, see [CNSA Analyses](Analyses.md).
+

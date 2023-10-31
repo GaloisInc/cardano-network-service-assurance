@@ -233,8 +233,13 @@ http://localhost:8080/metrics.  It serves all three types of metrics:
 counters, histograms, and gauges.  Note the following output from
 `curl http://localhost:8080/metrics`:
 
+    # TYPE blockfetching_total_bytes counter
+    blockfetching_total_bytes{host="mysamplehost1"} 26842211
+    blockfetching_total_bytes{host="mysamplehost2"} 30867118
+
     # TYPE count_of_tracelogs counter
     count_of_tracelogs  21045
+
     # TYPE propDelays histogram
     propDelays_bucket{le="0.1"} 822.0
     propDelays_bucket{le="0.2"} 30709.0
@@ -275,6 +280,9 @@ where,
     seen so far.
   - `slot_penultimate`, of type `gauge`, is the second highest slot number
     for the blocks seen so far.
+  - `blockfetching_total_bytes{host="SH1"}` is total number of bytes
+    downloaded via block fetching for a given sample host `SH1`.  Note
+    the use of Prometheus labels here.
 
 ### Retrieving Stored Block Data
 
