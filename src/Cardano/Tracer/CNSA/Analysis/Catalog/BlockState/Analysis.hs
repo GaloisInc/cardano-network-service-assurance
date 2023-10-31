@@ -16,10 +16,7 @@ where
 -- base:
 import           Control.Monad
 import           Data.Functor.Contravariant
-import           Data.List (isPrefixOf)
 import qualified Data.Map as Map
-import           Data.Set (Set)
-import           Data.Text (Text)
 import           Data.Time (nominalDiffTimeToSeconds,diffUTCTime,NominalDiffTime)
 import           GHC.Generics
 
@@ -35,7 +32,6 @@ import           Cardano.Logging.Tracer.DataPoint
 import qualified Cardano.Logging.Types as Log
 import           Cardano.Slotting.Slot
 import           Cardano.Tracer.MetaTrace -- hiding (traceWith)
-import           Trace.Forward.Utils.DataPoint
 
 -- package locli: (or slice thereof)
 import qualified Cardano.Unlog.LogObject as LO
@@ -43,13 +39,10 @@ import           Cardano.Analysis.API.Ground (Hash)
 
 -- package prometheus:
 import qualified System.Metrics.Prometheus.Concurrent.Registry as PR
-import qualified System.Metrics.Prometheus.Metric.Counter      as PC
 import qualified System.Metrics.Prometheus.Metric.Gauge        as PG
-import           System.Metrics.Prometheus.Http.Scrape         as PS
 import qualified System.Metrics.Prometheus.Metric.Histogram    as PH
 
 -- local to this pkg:
--- FIXME1:
 import           Cardano.Tracer.CNSA.Analysis.Types
 import           Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.Types
 import           Cardano.Tracer.CNSA.Analysis.Catalog.BlockState.DB (BlockDBHandle, initializeBlockDB, writeBlockData)
