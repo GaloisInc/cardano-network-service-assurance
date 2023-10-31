@@ -5,14 +5,14 @@ Here we delve deeper into the CNSA implementation than is done in
 [Design and Architecture](DesignAndArchitecture.md).
 
 CNSA currently is composed of *three* `Analyses`.  Each analysis
-  - has state
-  - receives trace objects from all the sampling nodes
+  - has state,
+  - receives trace objects from all the sampling nodes,
   - can send results to any combination of the following:
     - `stdout`
     - the debugging logger (currently on `stdout`)
     - InfluxDB
-    - the DataPoint server (each analysis can any number of DataPoints
-      to the *one* DataPoint server).
+    - the DataPoint server (each analysis can add any number of
+      DataPoints to the *one* DataPoint server).
     - the Prometheus server (each analysis can add any number or types
       of Prometheus metrics to the *one* Prometheus server).
 
@@ -76,18 +76,18 @@ The current analyses are
    - The `CNSA.BlockState` datapoint, and
    - the following Prometheus metrics
 
-        # TYPE propDelays histogram
-        propDelays_bucket{le="0.1"} 822.0
-        propDelays_bucket{le="0.2"} 30709.0
-        ...
-        propDelays_sum  484713.4123378238
-        propDelays_count  578843
+          # TYPE propDelays histogram
+          propDelays_bucket{le="0.1"} 822.0
+          propDelays_bucket{le="0.2"} 30709.0
+          ...
+          propDelays_sum  484713.4123378238
+          propDelays_count  578843
 
-        # TYPE slot_penultimate gauge
-        slot_penultimate  9.833154e7
+          # TYPE slot_penultimate gauge
+          slot_penultimate  9.833154e7
 
-        # TYPE slot_top gauge
-        slot_top  9.8331553e7
+          # TYPE slot_top gauge
+          slot_top  9.8331553e7
 
 
 2. **CountTraceLogs** : Count the the number of trace events received
@@ -106,11 +106,17 @@ The current analyses are
         blockfetching_total_bytes{host="mysamplehost2"} 30867118
         ...
 
+    From this, one may easily view or compute the throughput rates of
+    sampler nodes, e.g., using the Prometheus query,
+
+        rate(blocks_downloaded_total_bytes[5s])
+
 ## Future Work
 
-- Generate all documentation automatically.
-- Further improve the the code to allow for "plug and play" analyses:
-  add, remove, link now analysis, etc.
+- Generate documentation for the analyses automatically.
+- Further improve the the code to allow for more of a "plug and play"
+  analysis: e.g., add, remove, link new analysis, etc.; turning
+  on/off, etc.
 - Improve the efficiency in dispatching trace events to analyses.
 - Remove possibility of analyses "accidentally" overlapping in their
   metrics, datapoints, or InfluxDb database writes.
