@@ -109,7 +109,7 @@ The current analyses are
     From this, one may easily view or compute the throughput rates of
     sampler nodes, e.g., using the Prometheus query,
 
-        rate(blocks_downloaded_total_bytes[5s])
+        rate(blockfetching_total_bytes[5s])
 
 ## Future Work
 
