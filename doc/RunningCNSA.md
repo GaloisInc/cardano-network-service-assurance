@@ -6,10 +6,10 @@ Our *demonstration* instantiation of CNSA includes
     running
      - `cardano-node` configured with new-tracing.
      - `cardano-tracer` configured to re-forward the tracing mini-protocols.
-    
+
   - One sink node `$SINK_HOST` running `cnsa-sink`.
 
-The required configuration files can be found in 
+The required configuration files can be found in
 [the configuration directory](../config/).
 Beyond the configuration files, we capture shared system information in
 [variables.sh](../scripts/variables.sh):
@@ -42,7 +42,7 @@ buffer. It will run without an InfluxDB installation, but to take advantage of
 the database capabilities, you'll need to install InfluxDB.
 
 On Mac, with homebrew:
-    
+
     brew install influxdb-cli
     brew install influxdb@1
 
@@ -54,9 +54,9 @@ On Linux:
 
 ## System Setup & Configuration
 
-Every sampling node 
+Every sampling node
  - needs the config files
- - should have the shell variables defined 
+ - should have the shell variables defined
 
 We use `rsync` to copy the config files from your local host to the
 sampling nodes:
@@ -105,7 +105,7 @@ requirement.
 A couple notes regarding `config/c-tracer-config-reforwarding.yaml`:
 
 - The configuration data duplicates two variables in
-  [variables.sh](../scripts/variables.sh): 
+  [variables.sh](../scripts/variables.sh):
 
         TRACER_SOCK=/tmp/cardano-node-to-cardano-tracer.sock
         REFWD_SOCK=/tmp/cardano-tracer-reforwarding.sock
@@ -122,11 +122,11 @@ A couple notes regarding `config/c-tracer-config-reforwarding.yaml`:
        ]
    ```
    This will enable the "re-forwarding" which serves the tracing
-   protocol on the Unix socket `/tmp/reforwarder.sock` and only 
+   protocol on the Unix socket `/tmp/reforwarder.sock` and only
    re-forwards log messages (having a hierarchical namespace) that
    have one of the indicated prefixes.  Currently the three prefixes
    are sufficient to compute CNSA's current "analyses" (see below).
-   
+
 ### Sink Node (`cnsa-sink`)
 
 The following is executed on the `$SINK_HOST`:
@@ -137,7 +137,7 @@ The following is executed on the `$SINK_HOST`:
 First, forward ports from all your sampling nodes to the sink host:
 
     tmux new -s port-forwarding
-    
+
      [ -e $SA1_REMOTE_TRACER_SOCK ] && unlink $SA1_REMOTE_TRACER_SOCK
      [ -e $SA2_REMOTE_TRACER_SOCK ] && unlink $SA2_REMOTE_TRACER_SOCK
 
@@ -153,7 +153,7 @@ Second, start InfluxDB.
 
 On Mac:
     brew services start influxdb@1
-    
+
 On Linux:
     tmux new -s influxdb
 
@@ -162,7 +162,7 @@ On Linux:
 Third, start `cnsa-sink`
 
     tmux new -s sink
-    
+
      cnsa-sink $SA1_REMOTE_TRACER_SOCK $SA2_REMOTE_TRACER_SOCK
 
 You'll see a pretty noisy `stdout` which includes debugging information
@@ -172,7 +172,7 @@ with "Overflow:", see *The `CNSA.BlockState` Datapoint and Log* below.
 ## Exercising the `cnsa-sink` service
 ### Storage of filtered, forwarded logs
 
-Note that the *filtered* log from each sampling node is being 
+Note that the *filtered* log from each sampling node is being
 stored on the sink node:
 
     ls -rlt /tmp/cnsa-sink-m-logs/tmp-cnsa-trace-forward-sa*sock/
@@ -182,7 +182,7 @@ stored on the sink node:
 We can verify that `cnsa-sink` is serving the `CNSA.BlockState` Datapoint
 
     tmux new -s demo
-    
+
      demo-acceptor $SINKSERVER_SOCK Initiator CNSA.BlockState
 
 `demo-acceptor` polls the *New Tracing Protocol* on `$SINKSERVER_SOCK`,
@@ -207,7 +207,7 @@ code](../src/Cardano/Tracer/CNSA/CnsaAnalyses.hs) as follows:
                 }
 
 As currently configured, the `Map` holds the five most recent blocks
-(as ordered by `SlotNo`), this data can be queried anytime via the 
+(as ordered by `SlotNo`), this data can be queried anytime via the
 Datapoint protocol, as we show above.
 
 As BlockData is rotated out of the `Map` it is logged to `stdout` prefixed
@@ -264,11 +264,11 @@ counters, histograms, and gauges.  Note the following output from
     # TYPE slot_top gauge
     slot_top  9.8331553e7
 
-where
+where,
   - `count_of_tracelogs`, of type `counter`, is counting the
     log messages received from the sampling nodes; it's not too useful
     but can serve as a "proof of life."
-  - `propDelays`, of type `histogram`, is recording for all peers, 
+  - `propDelays`, of type `histogram`, is recording for all peers,
     the time since slot start (delay) at which the sampling node
     learns that a peer sees a new header.
   - `slot_top`, of type `gauge`, is the highest slot number for the blocks
@@ -289,7 +289,7 @@ slot's inherent time and the time when each peer sends each sampler a header for
 a block in that slot.
 
 You can run the application like so:
-    
+
     cabal run delay-demo
 
 This will write two JSON files. `block-data.json` contains the JSON encoding of
@@ -301,11 +301,11 @@ result of the delay analysis.
 You can also see the "raw" block data entries. Enter the InfluxDB shell:
 
 On Mac:
-    
+
     influx v1 shell
 
 On Linux:
-    
+
     influx
 
 From the InfluxDB shell, you can list the block data that it has stored:
@@ -316,4 +316,3 @@ From the InfluxDB shell, you can list the block data that it has stored:
 At present, the block data is largely encoded as JSON. Haskell applications are
 well-poised to decode this JSON through the derived `FromJSON` instances of
 `BlockData` and its subsidiaries.
-
