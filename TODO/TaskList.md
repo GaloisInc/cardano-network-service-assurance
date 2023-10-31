@@ -16,7 +16,7 @@
     
   * [x] Add InfluxDB database backend (Sam)
             
-## Priority Two Goals ##
+## Future Work ##
 
   * [ ] Add new CNSA analysis for *block content metrics*.
     - We'd like to write analyses that incorporate additional sources
@@ -35,6 +35,16 @@
         
   * [ ] Extend logging of cnsa-sink to handle log-rotation, etc. using
         code from cardano-tracer library.
+
+  * [ ] code improvement: remove dependence on locli source code,
+        capture exactly what assumptions/dependences on the log files
+        
+  * [ ] make trace log "dispatching" to analyses more efficient: parse
+        once, dispatch once.
+        
+  * [ ] improve how we add analyses
+    - make them more "plugin"-like
+    - more automated: then generate config files, generate documentation.
 
 ## Supporting the Use/Application of CNSA ##
 
