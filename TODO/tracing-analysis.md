@@ -281,14 +281,29 @@ these are speculative; not all may be necessary. Here's the list:
     - we generate list of datapoints, log messages & types, &
       documentation (see *documentation and usability* above).
 
-- Various design principles
-  - when we switch to new tracing and use *NT-PRTCL*: there should be
-    no lost capabilities, and minimal performance cost.
-  - tracing itself should be *pay as you go* as much as possible:
+- Performance and Cost (When and who bears these costs)
+  - Performance should be better than the current system.
+  - The cost of tracing should be born as much as possible in the
+    trace consumers and *not* by the trace producers.
+    - NOTE: An instance of this is that the computation to *render* a
+      log should be paid by the consumer, not the producer.
+  - The cost of tracing should be *pay as you go* as much as possible:
     - few/zero computation costs for *any* traces we have disabled
       statically.
     - few/zero computation costs for traces we disable dynamically.
-      (?)
+  - NOTE: How to achieve these objectives is not obvious or trivial.
+      Currently the trace producing code assumes various
+      `App-Tracing-Type`s are lazy and that consumers that demand them
+      are cognizant of the computation cost.  We want to move to a
+      situation where the consumers *pay* the computation cost.
+      Abstractly, this seems like a "distributed thunk:" the trace
+      producer creates a thunk, which might be subsequently serialized
+      and unserialized, and the trace consumer is where the forcing is
+      done.
+
+- Other design principles
+  - when we switch to new tracing and use *NT-PRTCL*: there should be
+    no lost capabilities.
 
 ## Avenues for Improvement ##
 
