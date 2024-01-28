@@ -21,12 +21,12 @@ We assume some familiarity with the Cardano tracing (logging) system as well as
 the "new tracing" system (based on trace-dispatcher and
 cardano-tracer). See in particular, [New Tracing
 Quickstart](https://github.com/input-output-hk/cardano-node-wiki/wiki/New-Tracing-Quickstart)
-which refers to these two documents [Cardano
+which refers to these two documents: [Cardano
 Tracer](https://github.com/input-output-hk/cardano-node/blob/master/cardano-tracer/docs/cardano-tracer.md)
 and [trace-dispatcher: efficient, simple and flexible program
 tracing](https://github.com/input-output-hk/cardano-node/blob/master/trace-dispatcher/doc/trace-dispatcher.md).
 
-The design is based on contravariant tracing, for a birds-eye
+The current design is based on contravariant tracing.  For a birds-eye
 perspective of contravariant tracing and its advantages, see Duncan
 Coutts' MuniHac 2020 talk:
 
@@ -52,14 +52,14 @@ separate components:
 ### Some Terminology ###
 
 Following in the spirit of the above references, we are intentionally
-using "tracing" as a more general term than "logging": logging is
-ultimately just about creating and storing log messages, while tracing could be
+using **tracing** as a more general term than **logging**: *logging* is
+is concerned with creating and storing log messages, while *tracing* could be
 used to monitor or analyze programs in the general sense; tracing
 could involve gathering metrics, EKG data, benchmarking, testing,
 etc.
 
 At the code level, we refer to the callers of `traceWith` as
-"application code" or as the trace-emitting program
+**application code** or as the **trace-emitting program**
 ([see](https://github.com/input-output-hk/cardano-node/blob/master/trace-dispatcher/doc/trace-dispatcher.md#overview-and-terminology))
 
 **Trace Consumers.**
@@ -75,9 +75,9 @@ of the traces, these consume traces at a higher or semantic level:
     with new-tracing, as served by `cardano-tracer`)
 
 Other terms and acronyms
- - NT-PRTCL : the New Tracing Protocol running between `cardano-node` and `cardano-tracer`.
- - CNSA : the Cardano Network Service Assurance system.
- - App-Tracing-Types : the types used by the application code which
+ - **NT-PRTCL**, the New Tracing Protocol running between `cardano-node` and `cardano-tracer`.
+ - **CNSA**, the Cardano Network Service Assurance system.
+ - **App-Tracing-Types**, the types used by the application code which
    are the arguments to our contravariant tracers.
 
 ## Assessments ##
@@ -102,7 +102,7 @@ With new-tracing, the tracing "consumers" need not even be in the same process.
 However, the tracing system at the moment is
  - focused on tracing & logging, and
  - not yet focused on
-   - the future potential when new-tracing is adopted, in particular
+   - the future potential when new-tracing is adopted, in particular,
      possible performance gains.
    - the growing ecosystem of code, tools, systems that require
      reliable and robust access to logging data, either "real-time"
@@ -120,9 +120,10 @@ system and using it in the *new-tracing* mode, we have noticed a few
     - bandwidth issues
       - JSON takes more space than CBOR (or the like)
       - the protocol is sending *both* human and machine
-        oriented already rendered logging messages: it seems that the code that turns
-        the types into human/machine should be on the *tracing
-        consumer* side of this protocol.
+        oriented *rendered* logging messages: it would
+        seem that
+        the *tracing consumer* side of this protocol should be where
+        the types are rendered into human/machine strings.
 
 - Maintenance and automation
   - when adding new tracers to application code---or when adding
@@ -141,9 +142,9 @@ system and using it in the *new-tracing* mode, we have noticed a few
 
 - Robustness and clarity issues:
   - a large number of by hand, and sometimes ad hoc, ToJSON/FromJSON instances:
-    - this code is tedious, thus prone to error, and induces very
+    - The code is tedious, thus prone to error, and induces very
       large multi-module/multi-repository dependencies.
-    - as a result correctness is *unlikely* anytime we parse JSON.
+    - As a result, correctness is *unlikely* anytime we parse JSON.
       - i.e., any client of the *NT-PRTCL* protocol must parse log messages
 
 - Versioning and known version compatibility:
@@ -157,8 +158,8 @@ system and using it in the *new-tracing* mode, we have noticed a few
     that attempts to parse log files for legacy systems. (This is code we
     have copied for CNSA.)  A more general solution seems worthwhile!
 
-The consequence of many of the above is more work and less than ideal solutions for
-tracing consumers such as
+Some of the consequences of the above isuses are more work and less
+than ideal solutions for tracing consumers such as
   - ad hoc log parsing in CNSA
   - ad hoc log parsing in the tracing/benchmarking code (in `cardano-node/bench/*`)
   - third party code that parses log files
@@ -172,13 +173,13 @@ The following is taken from a previous slack message on this subject:
 Obstacles & Issues
   1. The ToJSON instances are generally written by hand.
   2. The ToJSON "coverage" is patchy at the moment, sometimes only the
-     encapsulating type has an instance, sometimes only the "larger
-     class" ToObject has an instance.
+     encapsulating type has an instance, sometimes only the ``larger
+     class'' ToObject has an instance.
   3. For many "tracing types", the ToJSON/ToObject instance only
      encodes parts of the type (often fields are omitted, constructors
      too?).
   4. FromJSON is lacking, or is by hand, or is being duplicated: very
-     patchy in the cardano-node code.  done systematically in locli
+     patchy in the cardano-node code.  This is done systematically in locli
      (but by hand) the moral equivalent is done by SPO tools that
      parse the JSON formatted logs.
  5. JSON has issues:
@@ -210,9 +211,16 @@ Obstacles & Issues
 ## Brainstorming for an Ideal Tracing System ##
 
 We list here features we might like in a future (idealized) tracing
-system; some of these features currently exist to lesser or greater
-degrees in the system. (We leave out implementation issues.)  Some of
-these are speculative; not all may be necessary. Here's the list:
+system.
+
+**CAVEATS**:
+ - Some of these features currently exist to lesser or greater degrees
+   in the system.
+ - We leave out implementation issues.
+ - Some of these are speculative.
+ - Not all may be necessary.
+
+Here's the list:
 
 - Documentation and usability
   - We want to be able to enumerate all *traces*
@@ -244,7 +252,7 @@ these are speculative; not all may be necessary. Here's the list:
   - We want to distinguish traces that are
     1. external and supported (advertised, not changed without warning)
     2. internal or unsupported (e.g., the application programmer can add/change
-       to his heart's content knowing he will break no other code)
+       to his heart's content knowing he/she will break no other code)
   - We need (typed) tracing that is to known to support a specific node version or eras.
     - without unnecessarily having incompatibilities between versions.
     - allowing for abstractions over traces that allow backward-compatibility
@@ -259,15 +267,15 @@ these are speculative; not all may be necessary. Here's the list:
       where we want to encode such information.
   - How this would work in practice:
     1. An application programmer adds a constructor/field to their *App-Tracing-Type*.
-    2. Programmer notates this as `internal` (in some manner)
+    2. Programmer notates this as `internal` (in some manner).
     3. No other code needs to change for the programmer to privately
        consume that tracing data.
-       - e.g., no ad hoc ToJSON/FromJSON instances!
+       - e.g., no *ad hoc* ToJSON/FromJSON instances need be written.
        - NOTE: no trace consumers should break as a result of this!
 
 - Maintainability and automation:
   - There must be a "single source of truth" regarding current traces,
-    their types and their hierarchical names from which
+    their types and their hierarchical names.  From this single source
     - we can generate efficient code to serialize/unserialize trace data
       as CBOR (or the like).
     - we generate code to read/write traces as JSON values
@@ -285,7 +293,7 @@ these are speculative; not all may be necessary. Here's the list:
   - Performance should be better than the current system.
   - The cost of tracing should be born as much as possible in the
     trace consumers and *not* by the trace producers.
-    - NOTE: An instance of this is that the computation to *render* a
+    - NOTE: An example of this principle is that the computation to *render* a
       log should be paid by the consumer, not the producer.
   - The cost of tracing should be *pay as you go* as much as possible:
     - few/zero computation costs for *any* traces we have disabled
@@ -299,7 +307,8 @@ these are speculative; not all may be necessary. Here's the list:
       Abstractly, this seems like a "distributed thunk:" the trace
       producer creates a thunk, which might be subsequently serialized
       and unserialized, and the trace consumer is where the forcing is
-      done.
+      done.  **CAVEAT:** this could require a little research,
+      exploration, meta-Haskell, etc!
 
 - Other design principles
   - when we switch to new tracing and use *NT-PRTCL*: there should be
@@ -315,7 +324,7 @@ mechanisms or design choices.   First observations
 
 We know that the benchmarking/tracing team has thought about many of
 these issues and the other Engineering teams have been dealing with
-the same pain points that we have in developing CNSA.
+the same pain points that Galois has experienced while developing CNSA.
 
 Some first ideas (low lying fruit?):
 
@@ -347,10 +356,12 @@ Other thoughts
   - ASN.1 might also serve as inspiration as it deals properly with
     the whole issue of *hiding* the encodings of *abstract data*.
 
-A paradigm shift?
+We are encouraging a small paradigm shift in how we think about
+tracing:
+
   - The **old** paradigm: contravariant tracing provides an elegant
     foundation for logging: thus, we immediately serialize and
-    we're now back to the status quo; but we haven't used our
+    we're now back to the status quo; but we haven't used the
     contravariant tracers to their potential.
 
   - The **new** paradigm: contravariant tracing provides new
@@ -368,9 +379,9 @@ A paradigm shift?
       - not necessarily *this* anymore: write a config file and parse a
         log file.
       - but we might have this: the trace consumer is code that uses
-        some API: this API can demand values, control precision?, etc.
+        some API: this API can demand values, control precision, etc.
         Ideally this code could exist in a separate process than the
-        trace producer is in.
+        process of the trace producer.
     3. tracing infrastructure: this may need to be "re-imagined",
        but the function here is simply to efficiently connect the trace
        consumers to the trace producers.
